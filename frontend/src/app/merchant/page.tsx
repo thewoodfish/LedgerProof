@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { Shield, Upload, ChevronRight, RefreshCw, CheckCircle2, XCircle, AlertCircle, Copy, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,12 @@ export default function MerchantPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (step === "transactions" && transactions.length === 0) {
+      handleLoadTransactions();
+    }
+  }, [step]);
 
   // ── Metrics phase ─────────────────────────────────────────────────────────
   const handleComputeMetrics = async () => {
@@ -157,7 +163,7 @@ export default function MerchantPage() {
             <CardHeader>
               <CardTitle>Upload Bank Statement</CardTitle>
               <CardDescription>
-                Upload your bank statement PDF. Transactions are extracted automatically — only ZK proofs leave your device.
+                Upload your bank statement as an Excel file (.xlsx). Transactions are extracted automatically — only ZK proofs leave your device.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -180,14 +186,14 @@ export default function MerchantPage() {
                     </>
                   ) : (
                     <>
-                      <p className="font-medium text-sm text-slate-700">Click to select PDF</p>
-                      <p className="text-xs text-slate-400 mt-1">Bank statement covering up to 6 months</p>
+                      <p className="font-medium text-sm text-slate-700">Click to select file</p>
+                      <p className="text-xs text-slate-400 mt-1">Excel bank statement (.xlsx or .xls)</p>
                     </>
                   )}
                 </div>
                 <input
                   type="file"
-                  accept="application/pdf"
+                  accept=".xlsx,.xls"
                   className="hidden"
                   onChange={(e) => {
                     setSelectedFile(e.target.files?.[0] ?? null);
@@ -225,10 +231,25 @@ export default function MerchantPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {transactions.length === 0 ? (
-                <Button onClick={handleLoadTransactions} disabled={loading} className="w-full gap-2">
-                  {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
-                  {loading ? "Loading..." : "Load Transactions"}
-                </Button>
+                <div className="space-y-3">
+                  {loading ? (
+                    <div className="flex items-center justify-center gap-2 py-8 text-slate-500">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Loading transactions…</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 py-8 text-center">
+                      <AlertCircle className="h-8 w-8 text-amber-400" />
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">No transactions found yet</p>
+                        <p className="text-xs text-slate-400 mt-1">Parsing may still be in progress. Try again in a moment.</p>
+                      </div>
+                      <Button variant="outline" onClick={handleLoadTransactions} className="gap-2">
+                        <RefreshCw className="h-4 w-4" /> Retry
+                      </Button>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <>
                   <div className="text-sm text-slate-500">

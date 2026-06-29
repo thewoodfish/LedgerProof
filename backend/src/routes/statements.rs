@@ -22,8 +22,8 @@ pub async fn upload(
 ) -> AppResult<Json<Value>> {
     let merchant_id = merchant_id_from_headers(&headers);
 
-    let mut filename = String::from("statement.pdf");
-    let mut pdf_bytes: Vec<u8> = Vec::new();
+    let mut filename = String::from("statement.xlsx");
+    let mut file_bytes: Vec<u8> = Vec::new();
 
     while let Some(field) = multipart
         .next_field()
@@ -33,9 +33,9 @@ pub async fn upload(
         if field.name() == Some("file") {
             filename = field
                 .file_name()
-                .unwrap_or("statement.pdf")
+                .unwrap_or("statement.xlsx")
                 .to_string();
-            pdf_bytes = field
+            file_bytes = field
                 .bytes()
                 .await
                 .map_err(|e| AppError::BadRequest(e.to_string()))?
@@ -43,7 +43,7 @@ pub async fn upload(
         }
     }
 
-    if pdf_bytes.is_empty() {
+    if file_bytes.is_empty() {
         return Err(AppError::BadRequest("No file provided".to_string()));
     }
 
@@ -73,7 +73,7 @@ pub async fn upload(
     let config = state.config.clone();
 
     tokio::spawn(async move {
-        match run_parse(stmt_id, merchant_id, &month, &pdf_bytes, &config, &db).await {
+        match run_parse(stmt_id, merchant_id, &month, &file_bytes, &config, &db).await {
             Ok(_) => {
                 let _ = sqlx::query(
                     "UPDATE statements SET status = 'parsed', updated_at = NOW() WHERE id = $1",
@@ -134,11 +134,11 @@ async fn run_parse(
     stmt_id: Uuid,
     merchant_id: Uuid,
     month: &str,
-    pdf_bytes: &[u8],
-    config: &std::sync::Arc<crate::config::Config>,
+    file_bytes: &[u8],
+    _config: &std::sync::Arc<crate::config::Config>,
     db: &sqlx::PgPool,
 ) -> anyhow::Result<()> {
-    let raw_txns = parser::parse_statement(pdf_bytes, config).await?;
+    let raw_txns = parser::parse_statement(file_bytes)?;
 
     for raw in &raw_txns {
         let date = parse_date(&raw.date)?;
