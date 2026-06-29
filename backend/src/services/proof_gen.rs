@@ -190,23 +190,22 @@ fn build_prover_toml(metrics: &FinancialMetrics, pub_inputs: &PublicInputs) -> S
         |v| v.as_i64().unwrap_or(0) as u64,
     );
 
-    let expenses_arr = months_array(
-        &months,
-        metrics.monthly_cash_flow.as_object(),
-        |v| {
-            // cash_flow = revenue - expenses, so expenses = revenue - cash_flow
-            // We stored cash_flow in monthly_cash_flow. Extract expenses from that.
-            // Actually we stored income - expense. If negative, flip.
-            let cf = v.as_i64().unwrap_or(0);
+    let expenses_arr: Vec<u64> = months
+        .iter()
+        .map(|m| {
+            let cf = metrics
+                .monthly_cash_flow
+                .get(m)
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
             let rev = metrics
                 .monthly_revenue
-                .get(months.first().map_or("", |s| s.as_str()))
-                .and_then(|x| x.as_i64())
+                .get(m)
+                .and_then(|v| v.as_i64())
                 .unwrap_or(0);
-            let exp = rev - cf;
-            exp.max(0) as u64
-        },
-    );
+            (rev - cf).max(0) as u64
+        })
+        .collect();
 
     let balance_arr = vec![metrics.avg_monthly_balance as u64; 6];
 
