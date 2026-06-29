@@ -152,7 +152,11 @@ fn cell_to_f64(row: &[Data], idx: usize) -> f64 {
             Data::Float(f) => Some(*f),
             Data::Int(i) => Some(*i as f64),
             Data::String(s) => {
-                let clean: String = s
+                let trimmed = s.trim();
+                if trimmed == "--" || trimmed.is_empty() {
+                    return Some(0.0);
+                }
+                let clean: String = trimmed
                     .chars()
                     .filter(|c| c.is_ascii_digit() || *c == '.' || *c == '-')
                     .collect();
@@ -164,22 +168,49 @@ fn cell_to_f64(row: &[Data], idx: usize) -> f64 {
 }
 
 fn parse_date_str(s: &str) -> Option<String> {
-    // Already YYYY-MM-DD
+    let s = s.trim();
+
+    // Already YYYY-MM-DD (possibly with time: YYYY-MM-DD HH:MM:SS)
     if s.len() >= 10 && s.chars().nth(4) == Some('-') {
         return Some(s[..10].to_string());
     }
+
+    // "DD Mon YYYY ..." e.g. "01 Jan 2026 08:36:36"
+    let parts: Vec<&str> = s.splitn(4, ' ').collect();
+    if parts.len() >= 3 && parts[2].len() == 4 {
+        if let Some(month) = month_abbr(parts[1]) {
+            return Some(format!("{}-{:02}-{:0>2}", parts[2], month, parts[0]));
+        }
+    }
+
     // DD/MM/YYYY or DD-MM-YYYY
     let sep = if s.contains('/') { '/' } else { '-' };
     let parts: Vec<&str> = s.splitn(3, sep).collect();
     if parts.len() == 3 {
         if parts[2].len() == 4 {
-            // DD/MM/YYYY
             return Some(format!("{}-{:0>2}-{:0>2}", parts[2], parts[1], parts[0]));
         }
         if parts[0].len() == 4 {
-            // YYYY/MM/DD
             return Some(format!("{}-{:0>2}-{:0>2}", parts[0], parts[1], parts[2]));
         }
     }
     None
+}
+
+fn month_abbr(s: &str) -> Option<u32> {
+    match s.to_lowercase().as_str() {
+        "jan" | "january"   => Some(1),
+        "feb" | "february"  => Some(2),
+        "mar" | "march"     => Some(3),
+        "apr" | "april"     => Some(4),
+        "may"               => Some(5),
+        "jun" | "june"      => Some(6),
+        "jul" | "july"      => Some(7),
+        "aug" | "august"    => Some(8),
+        "sep" | "september" => Some(9),
+        "oct" | "october"   => Some(10),
+        "nov" | "november"  => Some(11),
+        "dec" | "december"  => Some(12),
+        _ => None,
+    }
 }
