@@ -60,3 +60,4 @@ npm-debug.log*
 *.swo
 .idea/
 .vscode/
+contracts/lending_verifier/target/

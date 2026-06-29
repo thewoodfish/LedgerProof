@@ -17,5 +17,33 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgres://ledgerproof:ledgerproof@postgres:5432/ledgerproof
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CIRCUITS_DIR: /app/circuits/lending
+      PORT: 3001
+    volumes:
+      - ../circuits:/app/circuits:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:3001
+    depends_on:
+      - backend
+
 volumes:
   pgdata:
