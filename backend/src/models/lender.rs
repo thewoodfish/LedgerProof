@@ -12,6 +12,7 @@ pub struct LenderProfile {
     pub policy: Value,
     pub published: bool,
     pub stellar_policy_tx: Option<String>,
+    pub loan_amount_stroops: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -22,4 +23,5 @@ pub struct UpsertProfileRequest {
     pub description: Option<String>,
     pub policy: Option<Value>,
     pub published: Option<bool>,
+    pub loan_amount_stroops: Option<i64>,
 }

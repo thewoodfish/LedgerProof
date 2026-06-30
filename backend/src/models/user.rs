@@ -10,6 +10,7 @@ pub struct User {
     pub password_hash: String,
     pub role: String,
     pub full_name: Option<String>,
+    pub stellar_address: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 

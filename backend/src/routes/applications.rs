@@ -175,11 +175,13 @@ pub async fn verify(
         return Err(AppError::Unauthorized("Lender role required".into()));
     }
 
-    // (app_id, borrower_id, metrics_id, lender_profile_id, status)
-    let row: Option<(Uuid, Uuid, Uuid, Uuid, String)> = sqlx::query_as(
-        "SELECT la.id, la.borrower_id, la.metrics_id, la.lender_profile_id, la.status
+    // (app_id, borrower_id, metrics_id, lender_profile_id, status, borrower_stellar_address)
+    let row: Option<(Uuid, Uuid, Uuid, Uuid, String, Option<String>)> = sqlx::query_as(
+        "SELECT la.id, la.borrower_id, la.metrics_id, la.lender_profile_id, la.status,
+                u.stellar_address
          FROM loan_applications la
          JOIN lender_profiles lp ON lp.id = la.lender_profile_id
+         JOIN users u ON u.id = la.borrower_id
          WHERE la.id = $1 AND lp.user_id = $2",
     )
     .bind(app_id)
@@ -187,7 +189,7 @@ pub async fn verify(
     .fetch_optional(&state.db)
     .await?;
 
-    let (_, borrower_id, metrics_id, lender_profile_id, status) =
+    let (_, borrower_id, metrics_id, lender_profile_id, status, borrower_stellar_address) =
         row.ok_or_else(|| AppError::NotFound("Application not found".into()))?;
 
     if status != "pending" {
@@ -247,6 +249,8 @@ pub async fn verify(
     let soroban_contract = state.config.soroban_contract_id.clone();
     let stellar_identity = state.config.stellar_identity.clone();
     let stellar_network = state.config.stellar_network.clone();
+    let lender_id_str = lender_profile_id.to_string();
+    let borrower_addr = borrower_stellar_address.clone();
 
     let decision = tokio::task::spawn_blocking(move || {
         loan_engine::evaluate(
@@ -254,6 +258,8 @@ pub async fn verify(
             &package_clone,
             &policy_clone2,
             &circuits_dir2,
+            &lender_id_str,
+            borrower_addr.as_deref(),
             &loan_engine::SorobanConfig {
                 contract_id: &soroban_contract,
                 identity: &stellar_identity,
@@ -267,23 +273,36 @@ pub async fn verify(
 
     sqlx::query(
         "UPDATE loan_applications
-         SET status = $1, proof_id = $2, decision_reason = $3, decided_at = NOW()
+         SET status = $1, proof_id = $2, decision_reason = $3,
+             decided_at = NOW(), disbursement_tx_hash = $5
          WHERE id = $4",
     )
     .bind(&decision.decision)
     .bind(package.proof_id)
     .bind(&decision.reason)
     .bind(app_id)
+    .bind(&decision.disbursement_tx_hash)
     .execute(&state.db)
     .await?;
 
-    let proof_bytes_len = package.proof_hex.len() / 2; // hex → bytes
+    let proof_bytes_len = package.proof_hex.len() / 2;
     let proof_hash_preview = &package.proof_hex[..package.proof_hex.len().min(64)];
     let vk_hash_preview = &package.vk_hex[..package.vk_hex.len().min(32)];
 
     let stellar_explorer = decision.stellar_tx_hash.as_deref().map(|h| {
-        format!("https://stellar.expert/explorer/testnet/tx/{}", h)
+        format!("https://stellar.expert/explorer/{}/tx/{}", state.config.stellar_network, h)
     });
+
+    let disbursement = if decision.disbursement_tx_hash.is_some() {
+        let dtx = decision.disbursement_tx_hash.as_deref().unwrap_or("");
+        json!({
+            "tx_hash": dtx,
+            "explorer_url": format!("https://stellar.expert/explorer/{}/tx/{}", state.config.stellar_network, dtx),
+            "recipient": borrower_stellar_address,
+        })
+    } else {
+        json!(null)
+    };
 
     Ok(Json(json!({
         "application_id": app_id,
@@ -297,6 +316,7 @@ pub async fn verify(
             "contract_id": state.config.soroban_contract_id,
             "network": state.config.stellar_network,
         },
+        "disbursement": disbursement,
         "proof": {
             "id": package.proof_id,
             "circuit_id": package.circuit_id,

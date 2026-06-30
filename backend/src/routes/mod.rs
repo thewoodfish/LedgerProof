@@ -69,6 +69,8 @@ pub fn build(state: AppState) -> Router {
         // ── Auth (public) ──────────────────────────────────────────────────
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
+        .route("/auth/me", get(auth::me))
+        .route("/auth/stellar-address", post(auth::update_stellar_address))
         // ── Lender profiles ────────────────────────────────────────────────
         .route("/lenders", get(lenders_api::list_published))
         .route("/lenders/me", get(lenders_api::get_my_profile).post(lenders_api::upsert_profile))

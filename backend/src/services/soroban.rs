@@ -99,12 +99,16 @@ fn write_public_inputs_file(p: &LendingPolicy) -> Result<std::path::PathBuf> {
 }
 
 /// Record an approved/rejected loan decision on Stellar testnet.
+/// If APPROVED and a borrower Stellar address is provided, the contract
+/// automatically disburses XLM to the borrower.
 /// Returns the Stellar transaction hash on success.
 pub fn record_decision_on_chain(
     proof_id: Uuid,
     proof_hex: &str,
     policy: &LendingPolicy,
     decision: &str,
+    lender_id: &str,
+    borrower_stellar_address: Option<&str>,
     contract_id: &str,
     stellar_identity: &str,
     stellar_network: &str,
@@ -148,11 +152,12 @@ pub fn record_decision_on_chain(
     );
 
     let decision_symbol = decision.to_uppercase();
+    // Use borrower address for disbursement, or lender's own address as fallback
+    let borrower_arg = borrower_stellar_address.unwrap_or(stellar_identity);
 
     tracing::info!(
-        "Recording loan decision on Stellar (contract={}, decision={})",
-        contract_id,
-        decision_symbol
+        "Recording loan decision on Stellar (contract={}, decision={}, borrower={})",
+        contract_id, decision_symbol, borrower_arg
     );
 
     let output = Command::new("stellar")
@@ -164,6 +169,8 @@ pub fn record_decision_on_chain(
             "--",
             "record_decision",
             "--lender", stellar_identity,
+            "--lender_id", lender_id,
+            "--borrower", borrower_arg,
             "--proof_id", &proof_id_hex,
             "--proof_hash", &proof_hash_hex,
             "--public_inputs_bytes-file-path", inputs_file.to_str().unwrap_or("/tmp/lp_inputs.bin"),
@@ -183,7 +190,6 @@ pub fn record_decision_on_chain(
         bail!("Soroban invocation failed: {}", stderr.trim());
     }
 
-    // Extract signing tx hash from stderr (stellar CLI always logs it there)
     let tx_hash = stderr
         .lines()
         .find(|l| l.contains("Signing transaction:"))
@@ -192,6 +198,48 @@ pub fn record_decision_on_chain(
         .unwrap_or_else(|| "unknown".to_string());
 
     tracing::info!("Soroban tx recorded: {} — https://stellar.expert/explorer/{}/tx/{}", tx_hash, stellar_network, tx_hash);
+
+    Ok(tx_hash)
+}
+
+/// Store a lender's loan disbursement amount on-chain.
+pub fn set_loan_config_on_chain(
+    lender_id: &str,
+    amount_stroops: i64,
+    contract_id: &str,
+    stellar_identity: &str,
+    stellar_network: &str,
+) -> Result<String> {
+    tracing::info!(
+        "Setting loan config on Stellar (lender_id={}, amount_stroops={})",
+        lender_id, amount_stroops
+    );
+
+    let output = Command::new("stellar")
+        .args([
+            "contract", "invoke",
+            "--network", stellar_network,
+            "--source", stellar_identity,
+            "--id", contract_id,
+            "--",
+            "set_loan_config",
+            "--signer", stellar_identity,
+            "--lender_id", lender_id,
+            "--amount_stroops", &amount_stroops.to_string(),
+        ])
+        .output()?;
+
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if !output.status.success() {
+        bail!("set_loan_config failed: {}", stderr.trim());
+    }
+
+    let tx_hash = stderr
+        .lines()
+        .find(|l| l.contains("Signing transaction:"))
+        .and_then(|l| l.split_whitespace().last())
+        .map(str::to_string)
+        .unwrap_or_else(|| "unknown".to_string());
 
     Ok(tx_hash)
 }

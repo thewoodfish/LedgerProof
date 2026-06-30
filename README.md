@@ -95,7 +95,7 @@ Borrower uploads bank statement (XLSX)
             │
             ▼
   Soroban contract on Stellar testnet
-  CCWTTKOPDCVTZ2GO3MUUHE4GAR4MDFSZQDU6NRCVM4M5BTNUVRPEWVU7
+  CBT2XJCW6BBK3U4GII5ESRQXJ3TPBPVE23F26VMSKHBP4O4S2VAVYKS5
 
   record_decision(proof_id, proof_hash, public_inputs, policy, decision)
   ↳ re-verifies policy on-chain against the proven thresholds
@@ -311,7 +311,7 @@ No amounts. No customer names. No transaction descriptions. No account numbers.
 ┌─────────────────────────────────────────────────────────┐
 │           Soroban Smart Contract (Stellar testnet)      │
 │                                                         │
-│  CCWTTKOPDCVTZ2GO3MUUHE4GAR4MDFSZQDU6NRCVM4M5BTNUVRPEWVU7  │
+│  CBT2XJCW6BBK3U4GII5ESRQXJ3TPBPVE23F26VMSKHBP4O4S2VAVYKS5  │
 │                                                         │
 │  publish_policy(lender_id, policy)                      │
 │  ↳ called when lender publishes their profile          │
@@ -694,9 +694,9 @@ Stellar's sub-second finality and near-zero transaction fees make it practical t
 
 | | |
 |---|---|
-| **Contract ID** | `CCWTTKOPDCVTZ2GO3MUUHE4GAR4MDFSZQDU6NRCVM4M5BTNUVRPEWVU7` |
+| **Contract ID** | `CBT2XJCW6BBK3U4GII5ESRQXJ3TPBPVE23F26VMSKHBP4O4S2VAVYKS5` |
 | **Network** | Stellar testnet |
-| **Explorer** | [stellar.expert/explorer/testnet/contract/CCWTTKOP...](https://stellar.expert/explorer/testnet/contract/CCWTTKOPDCVTZ2GO3MUUHE4GAR4MDFSZQDU6NRCVM4M5BTNUVRPEWVU7) |
+| **Explorer** | [stellar.expert/explorer/testnet/contract/CCWTTKOP...](https://stellar.expert/explorer/testnet/contract/CBT2XJCW6BBK3U4GII5ESRQXJ3TPBPVE23F26VMSKHBP4O4S2VAVYKS5) |
 
 ### What the contract does
 

@@ -60,6 +60,7 @@ pub struct LoanDecision {
     pub proof_verified: bool,
     pub policy_met: bool,
     pub failed_predicates: Vec<String>,
-    /// Stellar testnet transaction hash from the Soroban lending verifier contract
     pub stellar_tx_hash: Option<String>,
+    pub disbursement_tx_hash: Option<String>,
+    pub disbursement_amount_stroops: Option<i64>,
 }

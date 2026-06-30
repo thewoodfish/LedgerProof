@@ -67,6 +67,7 @@ pub async fn get_my_profile(
         "policy": profile.policy,
         "published": profile.published,
         "stellar_policy_tx": profile.stellar_policy_tx,
+        "loan_amount_stroops": profile.loan_amount_stroops,
         "stellar": stellar,
         "created_at": profile.created_at,
         "updated_at": profile.updated_at,
@@ -83,11 +84,12 @@ pub async fn upsert_profile(
 
     let publishing = req.published.unwrap_or(false);
 
-    // Compute stellar_policy_tx only when lender is publishing
+    // When publishing: store policy on-chain AND set loan config on-chain
     let stellar_tx: Option<String> = if publishing {
         if let Some(policy_val) = &req.policy {
             if let Ok(lp) = serde_json::from_value::<LendingPolicy>(policy_val.clone()) {
-                match soroban::publish_policy_on_chain(
+                // Publish policy criteria on-chain
+                let policy_tx = match soroban::publish_policy_on_chain(
                     &auth.id.to_string(),
                     &lp,
                     &state.config.soroban_contract_id,
@@ -99,7 +101,21 @@ pub async fn upsert_profile(
                         tracing::warn!("Soroban publish_policy failed (non-fatal): {e}");
                         None
                     }
+                };
+
+                // Store loan disbursement amount on-chain
+                let loan_amount = req.loan_amount_stroops.unwrap_or(20_000_000); // default 2 XLM
+                if let Err(e) = soroban::set_loan_config_on_chain(
+                    &auth.id.to_string(),
+                    loan_amount,
+                    &state.config.soroban_contract_id,
+                    &state.config.stellar_identity,
+                    &state.config.stellar_network,
+                ) {
+                    tracing::warn!("Soroban set_loan_config failed (non-fatal): {e}");
                 }
+
+                policy_tx
             } else {
                 None
             }
@@ -110,15 +126,19 @@ pub async fn upsert_profile(
         None
     };
 
+    let loan_amount = req.loan_amount_stroops.unwrap_or(20_000_000);
+
     let profile: LenderProfile = sqlx::query_as(
-        r#"INSERT INTO lender_profiles (user_id, display_name, description, policy, published, stellar_policy_tx)
-           VALUES ($1, $2, $3, $4, $5, $6)
+        r#"INSERT INTO lender_profiles
+               (user_id, display_name, description, policy, published, stellar_policy_tx, loan_amount_stroops)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
            ON CONFLICT (user_id) DO UPDATE SET
-               display_name       = COALESCE(EXCLUDED.display_name, lender_profiles.display_name),
-               description        = COALESCE(EXCLUDED.description,  lender_profiles.description),
-               policy             = COALESCE(EXCLUDED.policy,       lender_profiles.policy),
-               published          = COALESCE(EXCLUDED.published,    lender_profiles.published),
-               stellar_policy_tx  = COALESCE(EXCLUDED.stellar_policy_tx, lender_profiles.stellar_policy_tx),
+               display_name       = COALESCE(EXCLUDED.display_name,      lender_profiles.display_name),
+               description        = COALESCE(EXCLUDED.description,        lender_profiles.description),
+               policy             = COALESCE(EXCLUDED.policy,             lender_profiles.policy),
+               published          = COALESCE(EXCLUDED.published,          lender_profiles.published),
+               stellar_policy_tx  = COALESCE(EXCLUDED.stellar_policy_tx,  lender_profiles.stellar_policy_tx),
+               loan_amount_stroops = EXCLUDED.loan_amount_stroops,
                updated_at         = NOW()
            RETURNING *"#,
     )
@@ -128,6 +148,7 @@ pub async fn upsert_profile(
     .bind(req.policy.as_ref().unwrap_or(&serde_json::Value::Object(Default::default())))
     .bind(publishing)
     .bind(stellar_tx.as_deref())
+    .bind(loan_amount)
     .fetch_one(&state.db)
     .await?;
 
@@ -150,6 +171,7 @@ pub async fn upsert_profile(
         "policy": profile.policy,
         "published": profile.published,
         "stellar_policy_tx": profile.stellar_policy_tx,
+        "loan_amount_stroops": profile.loan_amount_stroops,
         "stellar": stellar,
         "created_at": profile.created_at,
         "updated_at": profile.updated_at,

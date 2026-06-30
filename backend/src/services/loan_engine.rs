@@ -13,11 +13,15 @@ pub struct SorobanConfig<'a> {
 }
 
 /// Verify a proof package, evaluate the loan decision, and record it on Stellar.
+/// If approved and the borrower has a Stellar address, XLM is disbursed
+/// automatically via the Soroban contract.
 pub fn evaluate(
     application_id: Uuid,
     package: &ProofPackage,
     policy: &LendingPolicy,
     circuits_dir: &str,
+    lender_id: &str,
+    borrower_stellar_address: Option<&str>,
     soroban: &SorobanConfig,
 ) -> Result<LoanDecision> {
     // 1. Cryptographic proof verification (off-chain, bb verify)
@@ -38,6 +42,8 @@ pub fn evaluate(
             policy_met: false,
             failed_predicates: vec!["proof_invalid".to_string()],
             stellar_tx_hash: None,
+            disbursement_tx_hash: None,
+            disbursement_amount_stroops: None,
         });
     }
 
@@ -63,12 +69,15 @@ pub fn evaluate(
         )
     };
 
-    // 3. Record decision on Stellar testnet (non-blocking on failure)
+    // 3. Record decision on Stellar — contract auto-disburses XLM if APPROVED
+    //    and lender has configured a loan amount and borrower has a Stellar address.
     let stellar_tx_hash = match soroban::record_decision_on_chain(
         package.proof_id,
         &package.proof_hex,
         policy,
         &decision,
+        lender_id,
+        borrower_stellar_address,
         soroban.contract_id,
         soroban.identity,
         soroban.network,
@@ -83,6 +92,15 @@ pub fn evaluate(
         }
     };
 
+    // The disbursement tx IS the same Stellar tx — the contract disburses atomically
+    // within record_decision. We surface it separately in the UI for clarity.
+    let (disbursement_tx_hash, disbursement_amount_stroops) =
+        if decision == "approved" && stellar_tx_hash.is_some() && borrower_stellar_address.is_some() {
+            (stellar_tx_hash.clone(), None::<i64>) // amount fetched from contract config
+        } else {
+            (None, None)
+        };
+
     Ok(LoanDecision {
         application_id,
         decision,
@@ -91,5 +109,7 @@ pub fn evaluate(
         policy_met,
         failed_predicates: failed,
         stellar_tx_hash,
+        disbursement_tx_hash,
+        disbursement_amount_stroops,
     })
 }

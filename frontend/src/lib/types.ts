@@ -111,9 +111,16 @@ export interface LenderProfile {
   policy: LendingPolicy;
   published: boolean;
   stellar_policy_tx: string | null;
+  loan_amount_stroops: number;
   stellar?: StellarRecord;
   created_at: string;
   updated_at: string;
+}
+
+export interface Disbursement {
+  tx_hash: string;
+  explorer_url: string;
+  recipient: string | null;
 }
 
 // ── Applications ───────────────────────────────────────────────────────────
@@ -148,5 +155,6 @@ export interface VerifyResult {
   proof_verified: boolean;
   predicates: ProvenPredicate[];
   stellar?: StellarRecord;
+  disbursement?: Disbursement;
   proof?: ProofDetail;
 }

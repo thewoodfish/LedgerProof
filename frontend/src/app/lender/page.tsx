@@ -55,7 +55,7 @@ export default function LenderDashboard() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [toggling, setToggling] = useState(false);
-  const [form, setForm] = useState({ display_name: "", description: "", policy: { ...DEFAULT_POLICY } });
+  const [form, setForm] = useState({ display_name: "", description: "", policy: { ...DEFAULT_POLICY }, loan_amount_stroops: 20_000_000 });
 
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loadingApps, setLoadingApps] = useState(false);
@@ -83,6 +83,7 @@ export default function LenderDashboard() {
         display_name: p.display_name ?? "",
         description:  p.description ?? "",
         policy: { ...DEFAULT_POLICY, ...(p.policy as object) },
+        loan_amount_stroops: p.loan_amount_stroops ?? 20_000_000,
       });
     } catch { /* first load */ }
   }
@@ -96,7 +97,7 @@ export default function LenderDashboard() {
   async function handleSave() {
     setSaving(true); setSaveMsg("");
     try {
-      const p = await upsertLenderProfile(form);
+      const p = await upsertLenderProfile({ ...form, loan_amount_stroops: form.loan_amount_stroops });
       setProfile(p);
       setSaveMsg(p.stellar ? "Profile saved & policy published on Stellar." : "Profile saved.");
     } catch (err) {
@@ -258,6 +259,29 @@ export default function LenderDashboard() {
                     onChange={(v) => setPolicyField("required_account_age_months", v)} />
                 </CardContent>
               </Card>
+            </div>
+
+            {/* Loan disbursement amount */}
+            <div className="rounded-xl border border-slate-700 bg-slate-900 p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-green-400" />
+                <span className="font-medium text-sm text-white">Loan Disbursement Amount</span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Amount of XLM automatically sent to the borrower&apos;s Stellar wallet when their proof is approved.
+                Stored on-chain when you publish. 1 XLM = 10,000,000 stroops.
+              </p>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  className="w-48 bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-600"
+                  value={form.loan_amount_stroops}
+                  onChange={e => setForm(f => ({ ...f, loan_amount_stroops: Number(e.target.value) }))}
+                  min={0}
+                  step={10_000_000}
+                />
+                <span className="text-slate-400 text-sm">stroops = {(form.loan_amount_stroops / 10_000_000).toFixed(2)} XLM</span>
+              </div>
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
@@ -570,6 +594,49 @@ export default function LenderDashboard() {
                                         </div>
                                       )}
                                     </div>
+                                  </div>
+                                )}
+
+                                {/* Disbursement record */}
+                                {result.disbursement && (
+                                  <div className="bg-green-950/30 border border-green-800/40 rounded-lg p-4 space-y-3">
+                                    <div className="flex items-center gap-2">
+                                      <Zap className="h-4 w-4 text-green-400" />
+                                      <p className="text-xs font-mono text-green-400 uppercase tracking-widest">
+                                        XLM Disbursed to Borrower
+                                      </p>
+                                    </div>
+                                    <p className="text-xs text-slate-400">
+                                      XLM was automatically transferred to the borrower&apos;s Stellar wallet
+                                      as part of the same on-chain transaction.
+                                    </p>
+                                    <div className="grid gap-2 text-xs font-mono">
+                                      <MetaRow
+                                        icon={<Hash className="h-3.5 w-3.5 text-green-400" />}
+                                        label="Disbursement Tx"
+                                        value={result.disbursement.tx_hash}
+                                        mono copyable
+                                      />
+                                      {result.disbursement.recipient && (
+                                        <MetaRow
+                                          icon={<Shield className="h-3.5 w-3.5 text-green-400" />}
+                                          label="Recipient"
+                                          value={result.disbursement.recipient}
+                                          mono copyable
+                                        />
+                                      )}
+                                    </div>
+                                    {result.disbursement.explorer_url && (
+                                      <a
+                                        href={result.disbursement.explorer_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300 underline underline-offset-2"
+                                      >
+                                        <Globe className="h-3 w-3" />
+                                        View disbursement on Stellar Expert →
+                                      </a>
+                                    )}
                                   </div>
                                 )}
                               </>

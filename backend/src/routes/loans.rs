@@ -46,6 +46,8 @@ pub async fn evaluate(
             &package,
             &policy,
             &circuits_dir,
+            "direct",
+            None,
             &loan_engine::SorobanConfig {
                 contract_id: &soroban_contract,
                 identity: &stellar_identity,

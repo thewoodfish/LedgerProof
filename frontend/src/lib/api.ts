@@ -117,6 +117,7 @@ export async function upsertLenderProfile(data: {
   description?: string;
   policy?: LendingPolicy;
   published?: boolean;
+  loan_amount_stroops?: number;
 }): Promise<LenderProfile> {
   const res = await fetch(`${API}/lenders/me`, {
     method: "POST",
@@ -188,6 +189,22 @@ export async function verifyProof(
     method: "POST",
     headers: authHeaders({ "content-type": "application/json" }),
     body: JSON.stringify({ proof_package: proofPackage }),
+  });
+  return handleResponse(res);
+}
+
+// ── User profile ───────────────────────────────────────────────────────────
+
+export async function getMe(): Promise<{ id: string; username: string; role: string; stellar_address: string | null }> {
+  const res = await fetch(`${API}/auth/me`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+export async function updateStellarAddress(address: string): Promise<{ stellar_address: string | null }> {
+  const res = await fetch(`${API}/auth/stellar-address`, {
+    method: "POST",
+    headers: authHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify({ stellar_address: address }),
   });
   return handleResponse(res);
 }

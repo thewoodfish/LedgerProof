@@ -17,7 +17,7 @@
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype,
-    symbol_short, Address, Bytes, BytesN, Env, String, Symbol,
+    symbol_short, token, Address, Bytes, BytesN, Env, String, Symbol,
     log, panic_with_error,
 };
 
@@ -39,6 +39,15 @@ pub enum Error {
 pub enum DataKey {
     LoanRecord(BytesN<16>),
     LenderPolicy(String),
+    LoanConfig(String),
+    NativeToken,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct LoanConfig {
+    /// Amount in stroops (1 XLM = 10_000_000 stroops) to disburse on approval
+    pub amount_stroops: i128,
 }
 
 // ── Data types ─────────────────────────────────────────────────────────────
@@ -93,6 +102,37 @@ pub struct LendingVerifier;
 
 #[contractimpl]
 impl LendingVerifier {
+    /// One-time setup: store the native XLM token contract address.
+    /// Must be called once after deployment before any disbursements.
+    pub fn initialize(env: Env, native_token: Address) {
+        if env.storage().instance().has(&DataKey::NativeToken) {
+            panic_with_error!(&env, Error::InvalidInput);
+        }
+        env.storage().instance().set(&DataKey::NativeToken, &native_token);
+    }
+
+    /// Lender configures how much XLM to disburse per approved loan.
+    /// amount_stroops: 1 XLM = 10_000_000 stroops
+    pub fn set_loan_config(
+        env: Env,
+        signer: Address,
+        lender_id: String,
+        amount_stroops: i128,
+    ) -> Symbol {
+        signer.require_auth();
+        env.storage().persistent().set(
+            &DataKey::LoanConfig(lender_id.clone()),
+            &LoanConfig { amount_stroops },
+        );
+        log!(&env, "LedgerProof: loan config set for lender {} — {} stroops", lender_id, amount_stroops);
+        symbol_short!("OK")
+    }
+
+    /// Query a lender's configured loan disbursement amount.
+    pub fn get_loan_config(env: Env, lender_id: String) -> Option<LoanConfig> {
+        env.storage().persistent().get(&DataKey::LoanConfig(lender_id))
+    }
+
     /// Lender publishes their underwriting criteria on-chain.
     ///
     /// lender_id — the lender's application-layer ID (username or UUID string).
@@ -134,10 +174,14 @@ impl LendingVerifier {
     /// Record a verified loan decision on-chain.
     ///
     /// Called by the LedgerProof backend after `bb verify` confirms the
-    /// UltraHonk proof is valid. The lender must sign this transaction.
+    /// UltraHonk proof is valid. If the decision is APPROVED and the lender
+    /// has configured a loan amount, XLM is disbursed to the borrower's
+    /// Stellar address automatically.
     pub fn record_decision(
         env: Env,
         lender: Address,
+        lender_id: String,
+        borrower: Address,
         proof_id: BytesN<16>,
         proof_hash: BytesN<32>,
         public_inputs_bytes: Bytes,
@@ -164,6 +208,36 @@ impl LendingVerifier {
         env.storage()
             .persistent()
             .set(&DataKey::LoanRecord(proof_id.clone()), &record);
+
+        // Auto-disburse XLM to borrower if approved and loan config exists
+        let approved = symbol_short!("APPROVED");
+        if decision == approved {
+            if let Some(config) = env
+                .storage()
+                .persistent()
+                .get::<_, LoanConfig>(&DataKey::LoanConfig(lender_id.clone()))
+            {
+                if config.amount_stroops > 0 {
+                    if let Some(native_token) = env
+                        .storage()
+                        .instance()
+                        .get::<_, Address>(&DataKey::NativeToken)
+                    {
+                        let token_client = token::Client::new(&env, &native_token);
+                        token_client.transfer(
+                            &lender,
+                            &borrower,
+                            &config.amount_stroops,
+                        );
+                        log!(
+                            &env,
+                            "LedgerProof: disbursed {} stroops to borrower",
+                            config.amount_stroops
+                        );
+                    }
+                }
+            }
+        }
 
         log!(&env, "LedgerProof: {} decision recorded for proof {:?}", decision, proof_id);
 
@@ -280,6 +354,8 @@ mod tests {
         let client = LendingVerifierClient::new(&env, &contract_id);
 
         let lender = Address::generate(&env);
+        let borrower = Address::generate(&env);
+        let lender_id = String::from_str(&env, "lender-001");
         let proof_id = BytesN::from_array(&env, &[1u8; 16]);
         let proof_hash = BytesN::from_array(&env, &[2u8; 32]);
 
@@ -288,6 +364,8 @@ mod tests {
 
         let decision = client.record_decision(
             &lender,
+            &lender_id,
+            &borrower,
             &proof_id,
             &proof_hash,
             &public_inputs_bytes,
@@ -311,6 +389,8 @@ mod tests {
         let client = LendingVerifierClient::new(&env, &contract_id);
 
         let lender = Address::generate(&env);
+        let borrower = Address::generate(&env);
+        let lender_id = String::from_str(&env, "lender-001");
         let proof_id = BytesN::from_array(&env, &[3u8; 16]);
         let proof_hash = BytesN::from_array(&env, &[4u8; 32]);
 
@@ -320,6 +400,8 @@ mod tests {
 
         client.record_decision(
             &lender,
+            &lender_id,
+            &borrower,
             &proof_id,
             &proof_hash,
             &public_inputs_bytes,

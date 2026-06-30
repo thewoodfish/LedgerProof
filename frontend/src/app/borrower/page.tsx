@@ -14,6 +14,7 @@ import type { StoredUser } from "@/lib/auth";
 import {
   uploadStatement, computeMetrics, getLatestMetrics,
   getPublishedLenders, createApplication, getMyApplications,
+  getMe, updateStellarAddress,
 } from "@/lib/api";
 import type { MetricsSummary, LenderProfile, LoanApplication } from "@/lib/types";
 
@@ -48,6 +49,11 @@ export default function BorrowerDashboard() {
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [loadingApps, setLoadingApps] = useState(false);
 
+  // stellar address
+  const [stellarAddress, setStellarAddress] = useState("");
+  const [savingAddr, setSavingAddr] = useState(false);
+  const [addrMsg, setAddrMsg] = useState("");
+
   useEffect(() => {
     const u = getUser();
     if (!u || u.role !== "borrower") {
@@ -58,6 +64,7 @@ export default function BorrowerDashboard() {
     loadMetrics();
     loadLenders();
     loadApps();
+    getMe().then(m => setStellarAddress(m.stellar_address ?? "")).catch(() => {});
   }, []);
 
   async function loadMetrics() {
@@ -105,6 +112,16 @@ export default function BorrowerDashboard() {
     } finally {
       setComputing(false);
     }
+  }
+
+  async function handleSaveAddr() {
+    setSavingAddr(true); setAddrMsg("");
+    try {
+      await updateStellarAddress(stellarAddress.trim());
+      setAddrMsg("Saved.");
+    } catch (err) {
+      setAddrMsg(err instanceof Error ? err.message : "Failed");
+    } finally { setSavingAddr(false); }
   }
 
   async function handleApply(lender: LenderProfile) {
@@ -275,7 +292,30 @@ export default function BorrowerDashboard() {
                 </Button>
               </div>
             )}
+          {/* Stellar receiving address */}
+          <div className="rounded-xl border border-slate-700 bg-slate-900 p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-blue-400" />
+              <span className="font-medium text-sm text-white">Stellar Wallet Address</span>
+              <span className="text-xs text-slate-500 ml-1">— for loan disbursement</span>
+            </div>
+            <p className="text-xs text-slate-400">
+              When a lender approves your application, XLM is sent automatically to this address on Stellar testnet.
+            </p>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-600"
+                placeholder="G... (Stellar public key)"
+                value={stellarAddress}
+                onChange={e => setStellarAddress(e.target.value)}
+              />
+              <Button size="sm" onClick={handleSaveAddr} disabled={savingAddr} className="bg-blue-600 hover:bg-blue-500">
+                {savingAddr ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+              </Button>
+            </div>
+            {addrMsg && <p className="text-xs text-green-400">{addrMsg}</p>}
           </div>
+        </div>
         )}
 
         {/* ── Lenders tab ── */}
@@ -405,22 +445,37 @@ export default function BorrowerDashboard() {
             ) : (
               <div className="grid gap-3">
                 {applications.map((app) => (
-                  <Card key={app.id} className="bg-slate-900 border-slate-800">
-                    <CardContent className="pt-4 flex items-center gap-4">
-                      <StatusIcon status={app.status} />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-white text-sm">
-                          {app.lender?.display_name ?? "Lender"}
+                  <Card key={app.id} className={`border-slate-800 ${app.status === "approved" ? "bg-green-950/20" : "bg-slate-900"}`}>
+                    <CardContent className="pt-4 space-y-3">
+                      <div className="flex items-center gap-4">
+                        <StatusIcon status={app.status} />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-white text-sm">
+                            {app.lender?.display_name ?? "Lender"}
+                          </div>
+                          {app.decision_reason && (
+                            <p className="text-xs text-slate-400 mt-0.5">{app.decision_reason}</p>
+                          )}
+                          <p className="text-xs text-slate-500 mt-1">
+                            Applied {new Date(app.created_at).toLocaleDateString()}
+                            {app.decided_at && ` · Decided ${new Date(app.decided_at).toLocaleDateString()}`}
+                          </p>
                         </div>
-                        {app.decision_reason && (
-                          <p className="text-xs text-slate-400 mt-0.5">{app.decision_reason}</p>
-                        )}
-                        <p className="text-xs text-slate-500 mt-1">
-                          Applied {new Date(app.created_at).toLocaleDateString()}
-                          {app.decided_at && ` · Decided ${new Date(app.decided_at).toLocaleDateString()}`}
-                        </p>
+                        <StatusBadge status={app.status} />
                       </div>
-                      <StatusBadge status={app.status} />
+                      {app.status === "approved" && (
+                        <div className="rounded-lg bg-green-950/40 border border-green-800 px-4 py-3 space-y-1">
+                          <p className="text-xs font-medium text-green-300 flex items-center gap-1.5">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Loan Disbursed on Stellar
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            XLM has been sent to your Stellar wallet automatically via smart contract.
+                          </p>
+                          {!stellarAddress && (
+                            <p className="text-xs text-amber-400">Add your Stellar address above to receive future disbursements.</p>
+                          )}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}

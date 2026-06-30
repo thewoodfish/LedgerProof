@@ -122,11 +122,51 @@ fn make_token(user: &User, secret: &str) -> AppResult<String> {
     .map_err(|e| AppError::Internal(anyhow::anyhow!("JWT encode: {e}")))
 }
 
+pub async fn update_stellar_address(
+    State(state): State<AppState>,
+    auth: super::AuthUser,
+    Json(body): Json<serde_json::Value>,
+) -> AppResult<Json<Value>> {
+    let address = body
+        .get("stellar_address")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
+    sqlx::query("UPDATE users SET stellar_address = $1 WHERE id = $2")
+        .bind(if address.is_empty() { None } else { Some(&address) })
+        .bind(auth.id)
+        .execute(&state.db)
+        .await?;
+
+    Ok(Json(json!({ "stellar_address": if address.is_empty() { None } else { Some(address) } })))
+}
+
+pub async fn me(
+    State(state): State<AppState>,
+    auth: super::AuthUser,
+) -> AppResult<Json<Value>> {
+    let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
+        .bind(auth.id)
+        .fetch_one(&state.db)
+        .await?;
+
+    Ok(Json(json!({
+        "id": user.id,
+        "username": user.username,
+        "role": user.role,
+        "full_name": user.full_name,
+        "stellar_address": user.stellar_address,
+    })))
+}
+
 fn public_user(u: &User) -> serde_json::Value {
     json!({
         "id": u.id,
         "username": u.username,
         "role": u.role,
         "full_name": u.full_name,
+        "stellar_address": u.stellar_address,
     })
 }
