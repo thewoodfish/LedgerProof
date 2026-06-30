@@ -312,9 +312,7 @@ fn build_predicates(metrics: &FinancialMetrics, policy: &LendingPolicy) -> Vec<P
     if policy.max_debt_ratio_bps.is_some() {
         pred!("debt ratio", "Debt payments within acceptable ratio of revenue");
     }
-    if policy.require_no_missed_repayments == Some(true) {
-        pred!("missed loan repayments", "No missed loan repayments detected");
-    }
+    pred!("missed loan repayments", "No missed loan repayments detected");
     if policy.required_account_age_months.is_some() {
         pred!("account age", "Account has sufficient history");
     }
