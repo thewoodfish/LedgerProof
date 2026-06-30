@@ -87,7 +87,7 @@ Published lending desks are listed with their ZK criteria visible — minimum re
 
 ### Borrower — My Applications
 
-Applications are tracked per lender with live status (Pending → Approved / Rejected). The borrower never knows whether their documents were read — because they were never submitted.
+Applications are tracked per lender with live status (Pending → Approved / Rejected). The borrower's financial data stays private throughout — the lender never sees the underlying statements, transactions, or balances at any point in the process.
 
 ![Borrower application tracker](frontend/assets/Screenshot%202026-06-30%20at%2001.53.47.png)
 
