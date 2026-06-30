@@ -69,7 +69,7 @@ LedgerProof answers those questions cryptographically — and nothing more.
 
 ## How It Works
 
-### The Complete Flow
+### The Flow
 
 ```
   Business financial history (any source)
@@ -124,7 +124,7 @@ No statements. No transactions. No balances. The lender learns only whether a ma
 
 ---
 
-## Screenshots
+## How It Works — In Practice
 
 ### Borrower — Upload Statement & Compute Metrics
 
