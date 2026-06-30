@@ -74,7 +74,7 @@ export default function Home() {
       <section className="max-w-4xl mx-auto px-6 pt-24 pb-20 text-center">
         <div className="inline-flex items-center gap-2 bg-blue-950 text-blue-300 border border-blue-800 rounded-full px-4 py-1.5 text-sm font-medium mb-8">
           <Lock className="h-3.5 w-3.5" />
-          Zero-Knowledge Proofs · Stellar / Soroban
+          Zero-Knowledge Proofs · Live on Stellar Testnet
         </div>
         <h1 className="text-5xl sm:text-6xl font-extrabold mb-6 leading-tight tracking-tight">
           Prove financial health.
@@ -127,8 +127,8 @@ export default function Home() {
             },
             {
               step: "03",
-              title: "Instant decision",
-              body: "Lenders verify the proof cryptographically. Loan approved or declined automatically — no statements requested, no financial data viewed.",
+              title: "On-chain decision",
+              body: "The proof is verified cryptographically. The loan decision — along with the proof hash and your lender's committed thresholds — is recorded permanently on Stellar via a Soroban smart contract. Approved or declined automatically. No statements ever viewed.",
               icon: <Shield className="h-7 w-7 text-green-400" />,
             },
           ].map((item) => (

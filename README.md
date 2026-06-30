@@ -4,7 +4,7 @@
 
 LedgerProof is a privacy-preserving SME lending protocol. Businesses prove they meet loan criteria using zero-knowledge proofs — without handing over a single bank statement, customer name, or balance figure.
 
-Lenders configure underwriting policies on-chain. Borrowers generate cryptographic proofs off-chain. A Soroban smart contract on Stellar verifies the proof and issues the decision. No financial documents change hands.
+Lenders publish underwriting policies on-chain. Borrowers generate UltraHonk zero-knowledge proofs off-chain. A deployed Soroban smart contract on Stellar testnet records every verified loan decision immutably. No financial documents change hands.
 
 ---
 
@@ -49,18 +49,17 @@ Borrower uploads bank statement (XLSX)
   nargo execute  →  witness (.gz)
   bb write_vk    →  verification key
   bb prove       →  UltraHonk proof (~14 KB)
-  bb verify      →  cryptographic confirmation
+  bb verify      →  cryptographic confirmation (off-chain)
             │
             ▼
-  Proof Package delivered to lender
-  (proof + vk + public inputs — zero financial data)
-            │
-            ▼
-  Soroban smart contract on Stellar
-  verifies proof on-chain
+  Soroban contract on Stellar testnet
+  CDY7T3CFWRI5N44ZVVG6GEC6DBE46UASCLVYWMHMY43YVLEZ2D5UDAVT
+  record_decision() — re-checks policy on-chain,
+  stores proof hash + decision immutably
             │
        ┌────┴────┐
     Approved   Rejected
+    (Stellar tx hash returned to lender UI)
 ```
 
 No statements. No transactions. No balances. The lender learns only whether a mathematical predicate over private data is true.
@@ -71,7 +70,7 @@ No statements. No transactions. No balances. The lender learns only whether a ma
 
 ### Borrower — Upload Statement & Compute Metrics
 
-The borrower uploads their XLSX bank statement. LedgerProof extracts every transaction, classifies it, and computes the financial summary locally. The numbers never leave the borrower's account.
+The borrower uploads their XLSX bank statement. LedgerProof extracts every transaction, classifies it, and computes the financial summary on LedgerProof's servers. The raw figures are never shared with any lender.
 
 ![Borrower statement upload and financial summary](frontend/assets/Screenshot%202026-06-30%20at%2001.53.27.png)
 
@@ -174,8 +173,8 @@ If all constraints hold, Barretenberg generates a valid **UltraHonk proof** (~14
 | Witness generation | `nargo execute` | Runs the circuit on real inputs, produces a witness |
 | Verification key | `bb write_vk --scheme ultra_honk` | Derives the key used to verify proofs for this circuit |
 | Proof generation | `bb prove --scheme ultra_honk` | Constructs the UltraHonk cryptographic proof |
-| Off-chain verification | `bb verify --scheme ultra_honk` | Verifies locally (primary demo path) |
-| On-chain verification | Soroban contract on Stellar | Verifies on-chain, records loan decision |
+| Cryptographic verification | `bb verify --scheme ultra_honk` | Verifies the proof off-chain (Soroban CPU budget cannot fit UltraHonk) |
+| On-chain recording | Soroban contract — `record_decision()` | Re-checks policy, stores proof hash + decision immutably on Stellar |
 
 ### What the Lender Sees
 
@@ -254,13 +253,15 @@ No amounts. No customer names. No transaction descriptions. No account numbers.
 │  bb prove                       UltraHonk proof         │
 │  bb verify                      cryptographic check     │
 └─────────────────────────────────────────────────────────┘
-                           │ (roadmap)
+                           │ stellar contract invoke
                            ▼
 ┌─────────────────────────────────────────────────────────┐
-│           Soroban Smart Contract (Stellar)              │
+│           Soroban Smart Contract (Stellar testnet)      │
 │                                                         │
-│  UltraHonk verifier (indextree/ultrahonk_soroban)       │
-│  On-chain proof verification + loan record              │
+│  CDY7T3CFWRI5N44ZVVG6GEC6DBE46UASCLVYWMHMY43YVLEZ2D5UDAVT  │
+│  record_decision() — re-verifies policy on-chain,      │
+│  stores proof hash + public inputs + decision           │
+│  Returns Stellar tx hash → shown in lender UI          │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -546,7 +547,7 @@ POST /verify-proof     { proof_package }             → { verified: bool }
 |---|---|
 | Some metrics are pre-computed off-chain | Revenue volatility, customer concentration, and debt ratio are computed by the Rust engine and passed as private witnesses. A dishonest prover could misrepresent them. Production hardening requires computing them inside the circuit or attesting them from a trusted oracle. |
 | Single concurrent proof | The proof lock serialises all proof requests. At scale, a dedicated proving cluster would generate proofs in parallel. |
-| Off-chain verification is the primary demo path | On-chain Soroban verification requires deploying the UltraHonk verifier contract to Stellar testnet. The `bb verify` path is fully functional for demo purposes. |
+| UltraHonk verification is off-chain | Soroban's CPU instruction budget cannot fit a full UltraHonk verification for a 14 KB proof. The `bb verify` step runs off-chain; the on-chain contract records the result and re-checks the policy. This matches how production ZK rollups work — verify off-chain, settle on-chain. |
 | XLSX format assumption | The parser expects a specific column layout from Nigerian bank XLSX exports. Additional parsers per bank format are a Phase 2 item. |
 
 ---
@@ -555,7 +556,7 @@ POST /verify-proof     { proof_package }             → { verified: bool }
 
 | Phase | Feature |
 |---|---|
-| ✅ MVP | XLSX upload · 8-metric ZK circuit · JWT auth · lender/borrower flow · UltraHonk proof UI |
+| ✅ MVP | XLSX upload · 8-metric ZK circuit · JWT auth · lender/borrower flow · UltraHonk proof · Soroban on-chain recording |
 | Phase 2 | Open Banking API — direct bank feed, no file upload required |
 | Phase 3 | Accounting connectors — QuickBooks, Xero, Sage |
 | Phase 4 | POS integrations — Paystack, Flutterwave, Moniepoint |
@@ -567,13 +568,25 @@ POST /verify-proof     { proof_package }             → { verified: bool }
 
 ## Why Stellar / Soroban
 
-Stellar's sub-second finality and near-zero transaction fees make it practical to record proof verifications on-chain without the gas overhead of EVM chains. Soroban's Rust-native contract environment aligns directly with the backend stack and with Barretenberg's Rust bindings.
+Stellar's sub-second finality and near-zero transaction fees make it practical to record proof verifications on-chain without the gas overhead of EVM chains. Soroban's Rust-native contract environment aligns directly with the backend stack.
 
-LedgerProof integrates with:
-- [`indextree/ultrahonk_soroban_contract`](https://github.com/indextree/ultrahonk_soroban_contract) — production UltraHonk verifier for Soroban
-- [`yugocabrio/rs-soroban-ultrahonk`](https://github.com/yugocabrio/rs-soroban-ultrahonk) — Rust integration layer for Soroban + Barretenberg
+### Deployed Contract
 
-The Soroban contract receives the proof, public inputs, and circuit identifier. If verification succeeds, the contract records the loan decision immutably on-chain and triggers disbursement logic.
+| | |
+|---|---|
+| **Contract ID** | `CDY7T3CFWRI5N44ZVVG6GEC6DBE46UASCLVYWMHMY43YVLEZ2D5UDAVT` |
+| **Network** | Stellar testnet |
+| **Explorer** | [stellar.expert/explorer/testnet/contract/CDY7T3...](https://stellar.expert/explorer/testnet/contract/CDY7T3CFWRI5N44ZVVG6GEC6DBE46UASCLVYWMHMY43YVLEZ2D5UDAVT) |
+
+### What the contract does
+
+After `bb verify` confirms the UltraHonk proof cryptographically (off-chain), the backend invokes `record_decision()` on the deployed contract. The contract:
+
+1. **Re-verifies the lending policy** — checks that the proven thresholds are at least as strict as what the lender requires. A proof generated under a laxer policy cannot be reused here.
+2. **Records the decision immutably** — stores the proof hash, proven public inputs, lender address, decision (`APPROVED` / `REJECTED`), and ledger timestamp in Soroban persistent storage.
+3. **Returns a Stellar transaction hash** — displayed in the lender UI with a direct link to the Stellar Explorer.
+
+Every loan decision has a permanent, verifiable on-chain record. Anyone can look up the proof hash and confirm the decision matches what they received off-chain.
 
 ---
 
@@ -587,7 +600,7 @@ For SMEs in emerging markets, where access to formal finance is already constrai
 
 - A single proof can be shared with multiple lenders — no repeated disclosure
 - Lenders can automate underwriting against verifiable signals — no document review
-- The borrower retains full control over their financial data — it never leaves their system
+- The borrower's financial data is never shared with any lender — only the cryptographic proof is
 
 **This is the infrastructure layer that privacy-preserving SME finance needs.**
 
