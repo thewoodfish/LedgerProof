@@ -97,19 +97,23 @@ Borrower uploads bank statement (XLSX)
   Soroban contract on Stellar testnet
   CBT2XJCW6BBK3U4GII5ESRQXJ3TPBPVE23F26VMSKHBP4O4S2VAVYKS5
 
-  record_decision(proof_id, proof_hash, public_inputs, policy, decision)
+  record_decision(lender, lender_id, borrower, proof_id, proof_hash,
+                  public_inputs, policy, decision)
   ↳ re-verifies policy on-chain against the proven thresholds
   ↳ stores proof hash + public inputs + decision immutably
-  ↳ returns Stellar tx hash → displayed in lender UI
+  ↳ if APPROVED: transfers XLM to borrower atomically in the same tx
+  ↳ returns Stellar tx hash → displayed in both dashboards
 
-  Note: publish_policy() was called earlier, when the lender published
-  their criteria. That transaction anchored the policy to Stellar before
-  any application was made. record_decision() references those same
-  committed thresholds — closing the audit loop.
+  Note: publish_policy() was called when the lender published their
+  criteria — anchoring the policy to Stellar before any application.
+  set_loan_config() was called at the same time, storing the
+  disbursement amount on-chain. record_decision() references both —
+  closing the audit loop and settling the loan in one transaction.
             │
        ┌────┴────┐
     Approved   Rejected
-    (Stellar tx hash returned to lender UI)
+    XLM sent   decision
+    to borrower  recorded
 ```
 
 No statements. No transactions. No balances. The lender learns only whether a mathematical predicate over private data is true.
@@ -226,8 +230,9 @@ If all constraints hold, Barretenberg generates a valid **UltraHonk proof** (~14
 | Verification key | `bb write_vk --scheme ultra_honk` | Derives the key used to verify proofs for this circuit |
 | Proof generation | `bb prove --scheme ultra_honk` | Constructs the UltraHonk cryptographic proof |
 | Cryptographic verification | `bb verify --scheme ultra_honk` | Verifies the proof off-chain (Soroban CPU budget cannot fit UltraHonk) |
-| Policy publish | Soroban contract — `publish_policy()` | Lender commits underwriting criteria on-chain **before** any application is made |
-| On-chain decision | Soroban contract — `record_decision()` | Re-checks that proven thresholds satisfy the published policy; stores proof hash + decision immutably on Stellar |
+| Policy publish | Soroban — `publish_policy()` | Lender commits underwriting criteria on-chain **before** any application is made |
+| Loan config | Soroban — `set_loan_config()` | Lender stores XLM disbursement amount on-chain at publish time |
+| On-chain decision + disbursement | Soroban — `record_decision()` | Re-checks proven thresholds against published policy; stores decision immutably; **atomically transfers XLM to borrower if APPROVED** |
 
 ### What the Lender Sees
 
@@ -238,6 +243,7 @@ If all constraints hold, Barretenberg generates a valid **UltraHonk proof** (~14
 ✓  Revenue volatility within acceptable range       PASS
 ✓  No single customer dominates revenue             PASS
 ✓  Debt payments within acceptable ratio            PASS
+✓  No missed loan repayments detected               PASS
 ✓  Account has sufficient history                   PASS
 
 Proof ID:               a41097d8-1109-4eef-83da-e19c392b5bfe
@@ -246,6 +252,9 @@ Proof hash (32 bytes):  00000000000000000000000000000000...042ab5d6d1986846cf
 VK hash (16 bytes):     00000000000010000000000000000c...
 Proof size:             14,592 bytes
 Verification:           ✓ VALID — UltraHonk verified
+
+Stellar decision tx:    480de5daa070ac2ad965b0838e184afb...
+XLM disbursed to:       GBLQBMQ... (borrower's Stellar wallet)
 ```
 
 No amounts. No customer names. No transaction descriptions. No account numbers.
@@ -278,19 +287,20 @@ No amounts. No customer names. No transaction descriptions. No account numbers.
 │                                                         │
 │  services/                                              │
 │    xlsx_parser.rs   calamine XLSX extraction            │
-│    metrics.rs       pure Rust 14-metric engine          │
+│    metrics.rs       pure Rust financial engine          │
 │    proof_gen.rs     nargo + bb subprocess orchestrator  │
 │    loan_engine.rs   policy evaluation + decision        │
+│    soroban.rs       stellar CLI wrapper (3 on-chain fns)│
 └──────────────────────────┬──────────────────────────────┘
                            │ SQLx
                            ▼
 ┌─────────────────────────────────────────────────────────┐
 │                   PostgreSQL                            │
 │                                                         │
-│  users               id, username, role, password_hash  │
-│  lender_profiles     policy JSONB, published bool       │
-│  loan_applications   borrower→lender, metrics, proof    │
-│  financial_metrics   14 computed metrics per merchant   │
+│  users               id, username, role, stellar_address │
+│  lender_profiles     policy JSONB, loan_amount_stroops  │
+│  loan_applications   borrower→lender, disbursement_tx   │
+│  financial_metrics   8 computed metrics per merchant    │
 │  statements          uploaded XLSX metadata             │
 │  transactions        normalised rows                    │
 │  proofs              proof_hex, vk_hex, predicates      │
@@ -317,10 +327,14 @@ No amounts. No customer names. No transaction descriptions. No account numbers.
 │  ↳ called when lender publishes their profile          │
 │  ↳ stores 8-field criteria on-chain before any loan    │
 │                                                         │
-│  record_decision(proof_id, proof_hash, inputs, decision)│
+│  set_loan_config(lender_id, amount_stroops)             │
+│  ↳ stores XLM disbursement amount on-chain at publish  │
+│                                                         │
+│  record_decision(lender, lender_id, borrower, ...)      │
 │  ↳ called after bb verify passes                       │
 │  ↳ re-checks policy, stores decision immutably         │
-│  ↳ returns Stellar tx hash → shown in lender UI        │
+│  ↳ if APPROVED: transfers XLM to borrower atomically   │
+│  ↳ tx hash returned → shown in both dashboards         │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -360,7 +374,7 @@ LedgerProof/
 │       │   └── transaction.rs      Transaction schema
 │       ├── routes/
 │       │   ├── mod.rs              AuthUser JWT extractor + route table
-│       │   ├── auth.rs             POST /auth/register, /auth/login
+│       │   ├── auth.rs             register, login, me, stellar-address
 │       │   ├── statements.rs       POST /upload-statement
 │       │   ├── transactions.rs     GET /transactions
 │       │   ├── metrics.rs          POST /metrics, GET /metrics/latest
@@ -369,9 +383,10 @@ LedgerProof/
 │       │   └── proofs.rs           POST /generate-proof, /verify-proof
 │       ├── services/
 │       │   ├── xlsx_parser.rs      calamine extraction + row normalisation
-│       │   ├── metrics.rs          14-metric financial engine
+│       │   ├── metrics.rs          8-metric financial engine
 │       │   ├── proof_gen.rs        Prover.toml builder + nargo/bb runner
-│       │   └── loan_engine.rs      Policy evaluation + decision
+│       │   ├── loan_engine.rs      Policy evaluation + decision
+│       │   └── soroban.rs          publish_policy, set_loan_config, record_decision
 │       └── db/
 │           └── migrations/
 │               ├── 001_init.sql    Core tables (statements, transactions, metrics, proofs)
@@ -486,7 +501,8 @@ nargo check         # type-checks the circuit
 3. On the **My Lending Profile** tab:
    - Enter a display name (e.g. *QuickFund Capital*)
    - Review the ZK criteria — kobo thresholds with live Naira hints
-   - Click **Save & Publish**
+   - Set the **Loan Disbursement Amount** (stroops — e.g. `20000000` = 2 XLM)
+   - Click **Save & Publish** — this calls `publish_policy()` and `set_loan_config()` on-chain; a "Lending Criteria Published on Stellar" card appears with the tx hash
 4. Switch to the **Applications** tab and wait for borrowers
 
 ### As a Borrower
@@ -494,13 +510,14 @@ nargo check         # type-checks the circuit
 1. Open a new browser / incognito window → **Apply for a loan**
 2. Sign up with role **Borrower**
 3. On the **My Statement** tab:
+   - Paste your Stellar testnet address into the **Stellar Wallet Address** field and click **Save** — this is where XLM will be sent if approved
    - Upload your XLSX bank statement
    - Click **Compute Metrics** — financial summary appears (not sent to any lender)
 4. On the **Browse Lenders** tab:
-   - See published lenders and their criteria
+   - See published lenders and their ZK criteria
    - Click **Apply** — a pending application is created
 5. On the **Applications** tab:
-   - Track status in real time
+   - Track status in real time; approved applications show a green "Loan Disbursed on Stellar" card
 
 ### Back as the Lender
 
@@ -515,8 +532,9 @@ nargo check         # type-checks the circuit
 5. See the full result panel:
    - Verdict: `✓ LOAN APPROVED` or `✗ LOAN REJECTED`
    - Every predicate: PASS / FAIL
-   - Proof hash, VK hash, proof size, circuit ID
-   - All public inputs committed to the circuit
+   - Proof hash, VK hash, proof size, circuit ID, all public inputs
+   - **Stellar Decision Tx** — immutable on-chain record of the decision
+   - **XLM Disbursed to Borrower** — tx hash + Stellar Expert link confirming funds sent
 
 ---
 
@@ -527,8 +545,10 @@ All endpoints except `/auth/*` and `GET /lenders` require `Authorization: Bearer
 ### Auth
 
 ```
-POST /auth/register    { username, password, role, full_name? }  → { token, user }
-POST /auth/login       { username, password }                    → { token, user }
+POST /auth/register          { username, password, role, full_name? }  → { token, user }
+POST /auth/login             { username, password }                    → { token, user }
+GET  /auth/me                (auth) → { id, username, role, stellar_address }
+POST /auth/stellar-address   (auth) { stellar_address }                → { stellar_address }
 ```
 
 ### Statements & Transactions
@@ -545,7 +565,8 @@ GET  /metrics/latest            → MetricsSummary
 ```
 GET  /lenders                   (public)  → LenderProfile[]
 GET  /lenders/me                (lender)  → LenderProfile
-POST /lenders/me                (lender)  { display_name, description, policy } → LenderProfile
+POST /lenders/me                (lender)  { display_name, description, policy,
+                                            loan_amount_stroops }  → LenderProfile
 POST /lenders/me/publish        (lender)  → { published: bool }
 ```
 
@@ -573,7 +594,10 @@ POST /verify-proof     { proof_package }             → { verified: bool }
 |---|---|---|
 | `DATABASE_URL` | ✓ | PostgreSQL connection string |
 | `JWT_SECRET` | ✓ | Secret key for HS256 JWT signing |
-| `CIRCUITS_DIR` | ✓ | Absolute or relative path to `circuits/lending/` |
+| `CIRCUITS_DIR` | ✓ | Path to `circuits/lending/` (relative to repo root) |
+| `SOROBAN_CONTRACT_ID` | ✓ | Deployed Soroban contract address |
+| `STELLAR_IDENTITY` | ✓ | `stellar keys` alias used to sign transactions (e.g. `alice`) |
+| `STELLAR_NETWORK` | ✓ | `testnet` or `mainnet` |
 | `PORT` | | Backend port (default: `3001`) |
 | `RUST_LOG` | | Logging filter (e.g. `ledgerproof_backend=debug`) |
 
@@ -700,25 +724,30 @@ Stellar's sub-second finality and near-zero transaction fees make it practical t
 
 ### What the contract does
 
-The contract has two load-bearing functions. **Both are called from the live backend.**
+The contract has three load-bearing functions. **All three are called from the live backend.**
 
 #### 1. `publish_policy` — lender commits underwriting criteria on-chain
 
-When a lender publishes their profile, the backend invokes `publish_policy()`. This stores the lender's 8-field underwriting policy (minimum revenue, minimum balance, volatility cap, etc.) permanently on Stellar, keyed by lender ID. The policy is:
+When a lender publishes their profile, the backend invokes `publish_policy()`. This stores the lender's 8-field underwriting policy permanently on Stellar, keyed by lender ID. The policy is:
 
 - **Public** — anyone can query it before any application is made
 - **Immutable** — recorded at a specific ledger timestamp
 - **Auditable** — the policy a borrower was judged against is verifiably the same one the lender committed to on-chain
 
-#### 2. `record_decision` — loan decision recorded after ZK proof verification
+#### 2. `set_loan_config` — lender stores XLM disbursement amount on-chain
+
+Called alongside `publish_policy` when the lender saves their profile. Stores the per-loan XLM disbursement amount (in stroops) in Soroban persistent storage, keyed by lender ID. This means the disbursement amount is public and pre-committed — not chosen at decision time.
+
+#### 3. `record_decision` — loan decision recorded and XLM disbursed atomically
 
 After `bb verify` confirms the UltraHonk proof cryptographically (off-chain), the backend invokes `record_decision()`. The contract:
 
 1. **Re-verifies the lending policy** — checks that the proven thresholds satisfy what the lender published. A proof generated under a laxer policy cannot be reused here.
 2. **Records the decision immutably** — stores the proof hash, proven public inputs, lender address, decision (`APPROVED` / `REJECTED`), and ledger timestamp in Soroban persistent storage.
-3. **Returns a Stellar transaction hash** — displayed in the lender UI with a direct link to Stellar Expert.
+3. **If APPROVED: transfers XLM to the borrower atomically** — calls the native XLM SAC to transfer the pre-configured disbursement amount to the borrower's Stellar wallet in the same transaction. Proof passes → money moves. No separate disbursement step.
+4. **Returns the Stellar transaction hash** — displayed in both the lender and borrower dashboards with a direct link to Stellar Expert.
 
-Together, the full on-chain audit trail is: **lender publishes criteria → borrower applies → ZK proof generated → decision recorded against those exact criteria.** Every step is anchored to Stellar.
+The complete on-chain trail: **lender publishes criteria + loan amount → borrower applies → ZK proof generated → decision recorded + XLM sent in one atomic transaction.** Every step is anchored to Stellar. No financial documents change hands at any point.
 
 ---
 
