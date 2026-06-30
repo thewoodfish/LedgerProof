@@ -95,7 +95,7 @@ Borrower uploads bank statement (XLSX)
             │
             ▼
   Soroban contract on Stellar testnet
-  CDY7T3CFWRI5N44ZVVG6GEC6DBE46UASCLVYWMHMY43YVLEZ2D5UDAVT
+  CCWTTKOPDCVTZ2GO3MUUHE4GAR4MDFSZQDU6NRCVM4M5BTNUVRPEWVU7
   record_decision() — re-checks policy on-chain,
   stores proof hash + decision immutably
             │
@@ -300,7 +300,7 @@ No amounts. No customer names. No transaction descriptions. No account numbers.
 ┌─────────────────────────────────────────────────────────┐
 │           Soroban Smart Contract (Stellar testnet)      │
 │                                                         │
-│  CDY7T3CFWRI5N44ZVVG6GEC6DBE46UASCLVYWMHMY43YVLEZ2D5UDAVT  │
+│  CCWTTKOPDCVTZ2GO3MUUHE4GAR4MDFSZQDU6NRCVM4M5BTNUVRPEWVU7  │
 │  record_decision() — re-verifies policy on-chain,      │
 │  stores proof hash + public inputs + decision           │
 │  Returns Stellar tx hash → shown in lender UI          │
@@ -677,19 +677,31 @@ Stellar's sub-second finality and near-zero transaction fees make it practical t
 
 | | |
 |---|---|
-| **Contract ID** | `CDY7T3CFWRI5N44ZVVG6GEC6DBE46UASCLVYWMHMY43YVLEZ2D5UDAVT` |
+| **Contract ID** | `CCWTTKOPDCVTZ2GO3MUUHE4GAR4MDFSZQDU6NRCVM4M5BTNUVRPEWVU7` |
 | **Network** | Stellar testnet |
-| **Explorer** | [stellar.expert/explorer/testnet/contract/CDY7T3...](https://stellar.expert/explorer/testnet/contract/CDY7T3CFWRI5N44ZVVG6GEC6DBE46UASCLVYWMHMY43YVLEZ2D5UDAVT) |
+| **Explorer** | [stellar.expert/explorer/testnet/contract/CCWTTKOP...](https://stellar.expert/explorer/testnet/contract/CCWTTKOPDCVTZ2GO3MUUHE4GAR4MDFSZQDU6NRCVM4M5BTNUVRPEWVU7) |
 
 ### What the contract does
 
-After `bb verify` confirms the UltraHonk proof cryptographically (off-chain), the backend invokes `record_decision()` on the deployed contract. The contract:
+The contract has two load-bearing functions. **Both are called from the live backend.**
 
-1. **Re-verifies the lending policy** — checks that the proven thresholds are at least as strict as what the lender requires. A proof generated under a laxer policy cannot be reused here.
+#### 1. `publish_policy` — lender commits underwriting criteria on-chain
+
+When a lender publishes their profile, the backend invokes `publish_policy()`. This stores the lender's 8-field underwriting policy (minimum revenue, minimum balance, volatility cap, etc.) permanently on Stellar, keyed by lender ID. The policy is:
+
+- **Public** — anyone can query it before any application is made
+- **Immutable** — recorded at a specific ledger timestamp
+- **Auditable** — the policy a borrower was judged against is verifiably the same one the lender committed to on-chain
+
+#### 2. `record_decision` — loan decision recorded after ZK proof verification
+
+After `bb verify` confirms the UltraHonk proof cryptographically (off-chain), the backend invokes `record_decision()`. The contract:
+
+1. **Re-verifies the lending policy** — checks that the proven thresholds satisfy what the lender published. A proof generated under a laxer policy cannot be reused here.
 2. **Records the decision immutably** — stores the proof hash, proven public inputs, lender address, decision (`APPROVED` / `REJECTED`), and ledger timestamp in Soroban persistent storage.
-3. **Returns a Stellar transaction hash** — displayed in the lender UI with a direct link to the Stellar Explorer.
+3. **Returns a Stellar transaction hash** — displayed in the lender UI with a direct link to Stellar Expert.
 
-Every loan decision has a permanent, verifiable on-chain record. Anyone can look up the proof hash and confirm the decision matches what they received off-chain.
+Together, the full on-chain audit trail is: **lender publishes criteria → borrower applies → ZK proof generated → decision recorded against those exact criteria.** Every step is anchored to Stellar.
 
 ---
 

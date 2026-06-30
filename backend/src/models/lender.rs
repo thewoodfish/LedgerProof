@@ -11,6 +11,7 @@ pub struct LenderProfile {
     pub description: String,
     pub policy: Value,
     pub published: bool,
+    pub stellar_policy_tx: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -92,6 +92,15 @@ export interface LendingPolicy {
   required_account_age_months?: number;
 }
 
+// ── Stellar ────────────────────────────────────────────────────────────────
+
+export interface StellarRecord {
+  tx_hash: string | null;
+  explorer_url: string | null;
+  contract_id: string;
+  network: string;
+}
+
 // ── Lender profiles ────────────────────────────────────────────────────────
 
 export interface LenderProfile {
@@ -101,6 +110,8 @@ export interface LenderProfile {
   description: string;
   policy: LendingPolicy;
   published: boolean;
+  stellar_policy_tx: string | null;
+  stellar?: StellarRecord;
   created_at: string;
   updated_at: string;
 }
@@ -128,13 +139,6 @@ export interface ProofDetail {
   proof_size_bytes: number;
   pub_inputs_hex: string;
   public_inputs: PublicInputs;
-}
-
-export interface StellarRecord {
-  tx_hash: string | null;
-  explorer_url: string | null;
-  contract_id: string;
-  network: string;
 }
 
 export interface VerifyResult {

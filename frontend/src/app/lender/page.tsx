@@ -98,7 +98,7 @@ export default function LenderDashboard() {
     try {
       const p = await upsertLenderProfile(form);
       setProfile(p);
-      setSaveMsg("Profile saved.");
+      setSaveMsg(p.stellar ? "Profile saved & policy published on Stellar." : "Profile saved.");
     } catch (err) {
       setSaveMsg(err instanceof Error ? err.message : "Save failed");
     } finally { setSaving(false); }
@@ -277,6 +277,45 @@ export default function LenderDashboard() {
               </Button>
               {saveMsg && <span className="text-sm text-green-400">{saveMsg}</span>}
             </div>
+
+            {/* ── On-chain policy record ── */}
+            {profile?.stellar && (
+              <div className="rounded-xl border border-blue-800 bg-blue-950/30 p-5 space-y-3">
+                <div className="flex items-center gap-2 text-blue-300 font-medium text-sm">
+                  <Globe className="h-4 w-4" />
+                  Lending Criteria Published on Stellar
+                </div>
+                <p className="text-slate-400 text-xs leading-relaxed">
+                  Your underwriting policy is stored immutably on the Soroban smart contract.
+                  Anyone can verify the criteria you committed to before any loan application was made.
+                </p>
+                <div className="grid grid-cols-1 gap-2 font-mono text-xs">
+                  <div className="flex items-center justify-between bg-slate-900 rounded px-3 py-2">
+                    <span className="text-slate-500">Network</span>
+                    <span className="text-slate-300 capitalize">{profile.stellar.network}</span>
+                  </div>
+                  <div className="flex items-center justify-between bg-slate-900 rounded px-3 py-2">
+                    <span className="text-slate-500">Contract</span>
+                    <span className="text-slate-300 truncate max-w-[200px]">{profile.stellar.contract_id}</span>
+                  </div>
+                  <div className="flex items-center justify-between bg-slate-900 rounded px-3 py-2">
+                    <span className="text-slate-500">Policy Tx</span>
+                    <span className="text-blue-400 truncate max-w-[200px]">{profile.stellar.tx_hash}</span>
+                  </div>
+                </div>
+                {profile.stellar.explorer_url && (
+                  <a
+                    href={profile.stellar.explorer_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    <Globe className="h-3.5 w-3.5" />
+                    View policy transaction on Stellar Expert →
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         )}
 

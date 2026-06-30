@@ -1,7 +1,9 @@
 use crate::{
     error::{AppError, AppResult},
     models::lender::{LenderProfile, UpsertProfileRequest},
+    models::metrics::LendingPolicy,
     routes::AuthUser,
+    services::soroban,
     AppState,
 };
 use axum::{extract::State, Json};
@@ -35,7 +37,7 @@ pub async fn list_published(State(state): State<AppState>) -> AppResult<Json<Vec
 pub async fn get_my_profile(
     State(state): State<AppState>,
     auth: AuthUser,
-) -> AppResult<Json<LenderProfile>> {
+) -> AppResult<Json<Value>> {
     require_lender(&auth)?;
 
     let profile: Option<LenderProfile> =
@@ -44,9 +46,31 @@ pub async fn get_my_profile(
             .fetch_optional(&state.db)
             .await?;
 
-    profile
-        .map(Json)
-        .ok_or_else(|| AppError::NotFound("Profile not found".into()))
+    let profile = profile.ok_or_else(|| AppError::NotFound("Profile not found".into()))?;
+
+    let stellar = profile.stellar_policy_tx.as_ref().map(|tx| {
+        json!({
+            "tx_hash": tx,
+            "explorer_url": format!(
+                "https://stellar.expert/explorer/{}/tx/{}",
+                state.config.stellar_network, tx
+            ),
+            "contract_id": state.config.soroban_contract_id,
+            "network": state.config.stellar_network,
+        })
+    });
+
+    Ok(Json(json!({
+        "id": profile.id,
+        "display_name": profile.display_name,
+        "description": profile.description,
+        "policy": profile.policy,
+        "published": profile.published,
+        "stellar_policy_tx": profile.stellar_policy_tx,
+        "stellar": stellar,
+        "created_at": profile.created_at,
+        "updated_at": profile.updated_at,
+    })))
 }
 
 /// POST /lenders/me — create or update profile + policy
@@ -54,29 +78,82 @@ pub async fn upsert_profile(
     State(state): State<AppState>,
     auth: AuthUser,
     Json(req): Json<UpsertProfileRequest>,
-) -> AppResult<Json<LenderProfile>> {
+) -> AppResult<Json<Value>> {
     require_lender(&auth)?;
 
+    let publishing = req.published.unwrap_or(false);
+
+    // Compute stellar_policy_tx only when lender is publishing
+    let stellar_tx: Option<String> = if publishing {
+        if let Some(policy_val) = &req.policy {
+            if let Ok(lp) = serde_json::from_value::<LendingPolicy>(policy_val.clone()) {
+                match soroban::publish_policy_on_chain(
+                    &auth.id.to_string(),
+                    &lp,
+                    &state.config.soroban_contract_id,
+                    &state.config.stellar_identity,
+                    &state.config.stellar_network,
+                ) {
+                    Ok(tx) => Some(tx),
+                    Err(e) => {
+                        tracing::warn!("Soroban publish_policy failed (non-fatal): {e}");
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     let profile: LenderProfile = sqlx::query_as(
-        r#"INSERT INTO lender_profiles (user_id, display_name, description, policy, published)
-           VALUES ($1, $2, $3, $4, $5)
+        r#"INSERT INTO lender_profiles (user_id, display_name, description, policy, published, stellar_policy_tx)
+           VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT (user_id) DO UPDATE SET
-               display_name = COALESCE(EXCLUDED.display_name, lender_profiles.display_name),
-               description  = COALESCE(EXCLUDED.description,  lender_profiles.description),
-               policy       = COALESCE(EXCLUDED.policy,       lender_profiles.policy),
-               published    = COALESCE(EXCLUDED.published,    lender_profiles.published),
-               updated_at   = NOW()
+               display_name       = COALESCE(EXCLUDED.display_name, lender_profiles.display_name),
+               description        = COALESCE(EXCLUDED.description,  lender_profiles.description),
+               policy             = COALESCE(EXCLUDED.policy,       lender_profiles.policy),
+               published          = COALESCE(EXCLUDED.published,    lender_profiles.published),
+               stellar_policy_tx  = COALESCE(EXCLUDED.stellar_policy_tx, lender_profiles.stellar_policy_tx),
+               updated_at         = NOW()
            RETURNING *"#,
     )
     .bind(auth.id)
     .bind(req.display_name.as_deref().unwrap_or(""))
     .bind(req.description.as_deref().unwrap_or(""))
     .bind(req.policy.as_ref().unwrap_or(&serde_json::Value::Object(Default::default())))
-    .bind(req.published.unwrap_or(false))
+    .bind(publishing)
+    .bind(stellar_tx.as_deref())
     .fetch_one(&state.db)
     .await?;
 
-    Ok(Json(profile))
+    let stellar = profile.stellar_policy_tx.as_ref().map(|tx| {
+        json!({
+            "tx_hash": tx,
+            "explorer_url": format!(
+                "https://stellar.expert/explorer/{}/tx/{}",
+                state.config.stellar_network, tx
+            ),
+            "contract_id": state.config.soroban_contract_id,
+            "network": state.config.stellar_network,
+        })
+    });
+
+    Ok(Json(json!({
+        "id": profile.id,
+        "display_name": profile.display_name,
+        "description": profile.description,
+        "policy": profile.policy,
+        "published": profile.published,
+        "stellar_policy_tx": profile.stellar_policy_tx,
+        "stellar": stellar,
+        "created_at": profile.created_at,
+        "updated_at": profile.updated_at,
+    })))
 }
 
 /// POST /lenders/me/publish — toggle published flag
