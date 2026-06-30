@@ -116,19 +116,19 @@ export default function Home() {
             {
               step: "01",
               title: "Upload your statement",
-              body: "Upload your bank statement once. Transactions are parsed privately — they never leave your account.",
+              body: "Upload your bank statement once. Transactions are parsed on LedgerProof's servers — never shared with any lender.",
               icon: <FileText className="h-7 w-7 text-blue-400" />,
             },
             {
               step: "02",
               title: "Generate a ZK proof",
-              body: "Your financial metrics go into a Noir circuit. The UltraHonk prover outputs a cryptographic proof of your eligibility.",
+              body: "Your financial metrics are fed into a Noir circuit as private inputs. The UltraHonk prover outputs a cryptographic proof of your eligibility — raw values stay hidden.",
               icon: <Lock className="h-7 w-7 text-purple-400" />,
             },
             {
               step: "03",
               title: "Instant decision",
-              body: "Lenders verify the proof on Soroban. Loan approved or declined automatically — statements never viewed.",
+              body: "Lenders verify the proof cryptographically. Loan approved or declined automatically — no statements requested, no financial data viewed.",
               icon: <Shield className="h-7 w-7 text-green-400" />,
             },
           ].map((item) => (
