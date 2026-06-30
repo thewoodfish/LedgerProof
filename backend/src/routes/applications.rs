@@ -249,7 +249,7 @@ pub async fn verify(
     let soroban_contract = state.config.soroban_contract_id.clone();
     let stellar_identity = state.config.stellar_identity.clone();
     let stellar_network = state.config.stellar_network.clone();
-    let lender_id_str = lender_profile_id.to_string();
+    let lender_id_str = lender_profile.user_id.to_string();
     let borrower_addr = borrower_stellar_address.clone();
 
     let decision = tokio::task::spawn_blocking(move || {
