@@ -39,6 +39,7 @@ const PROOF_STEPS = [
   { id: "vk",      label: "Writing verification key",    sub: "bb write_vk — deriving UltraHonk verification key from circuit" },
   { id: "prove",   label: "Generating ZK proof",         sub: "bb prove — UltraHonk prover constructing cryptographic proof" },
   { id: "verify",  label: "Verifying proof",             sub: "bb verify — checking proof against verification key" },
+  { id: "soroban", label: "Recording on Stellar",        sub: "Soroban contract — storing proof hash + decision immutably on-chain" },
 ];
 
 function fmt(n: number) {
