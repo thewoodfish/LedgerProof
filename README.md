@@ -72,12 +72,16 @@ LedgerProof answers those questions cryptographically — and nothing more.
 ### The Complete Flow
 
 ```
-Borrower uploads bank statement (XLSX)
+  Business financial history (any source)
+  ┌─────────────────────────────────────┐
+  │  XLSX upload      ← POC (current)  │
+  │  Open Banking API ← v2             │
+  │  POS feed         ← v3             │
+  │  Accounting connector ← v4         │
+  └─────────────────────────────────────┘
             │
-            ▼
-  Statement Parser — extracts every transaction
-  into a normalised schema (date, description,
-  credit, debit, balance)
+            ▼  normalised transaction schema
+            │  { date, description, credit, debit, balance }
             │
             ▼
   Financial Metrics Engine — computes 8 metrics
