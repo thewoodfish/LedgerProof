@@ -101,6 +101,14 @@ The lender publishes an underwriting policy: minimum thresholds and maximum tole
 
 ---
 
+### Lender — Incoming Applications
+
+Borrowers appear as anonymised applicants (`Applicant #0d72c5ed`). The lender sees the application date and status — no names, no financial figures. A pending application has a **Generate Proof** button; the lender triggers the ZK verification from here.
+
+![Lender incoming applications queue](frontend/assets/Screenshot%202026-06-30%20at%2002.31.29.png)
+
+---
+
 ### Lender — Generate Proof & Loan Decision
 
 The lender clicks **Generate Proof**. The UI steps through the full proving pipeline in real time — witness compilation, VK generation, UltraHonk proving, and cryptographic verification. The result shows each predicate individually (PASS / FAIL), the proof hash, verification key hash, proof size, and all public inputs committed to the circuit. The lender sees no financial data whatsoever.
