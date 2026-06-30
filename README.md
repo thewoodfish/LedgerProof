@@ -10,18 +10,60 @@ Lenders publish underwriting policies on-chain. Borrowers generate UltraHonk zer
 
 ## The Problem
 
-Every time a small business applies for a loan it hands over everything: six months of bank statements, customer names, supplier payments, salary runs, cash reserves, and margins. Most of that information has nothing to do with creditworthiness.
+Amara runs a fabric shop in Aba. Business is good — she moves stock, pays her suppliers, keeps a positive balance. She wants a ₦2 million working capital loan to stock up before the festive season.
 
-A lender only needs answers to a few binary questions:
+To apply, her bank asks for:
+
+- 6 months of certified bank statements
+- CAC registration documents
+- 2 years of audited accounts
+- A detailed business plan
+- Utility bills and proof of address
+- Collateral (land, property, or guarantor)
+
+She spends two weeks pulling documents together, photocopying statements, chasing her accountant. She submits everything. Three weeks later: rejected. The loan officer says her revenue pattern was "irregular." She never finds out exactly why. She reapplies to another lender. Same documents. Same wait. Same exposure of her entire financial life to strangers.
+
+This is not a rare story. It is the default experience for **40 million MSMEs in Nigeria**.
+
+---
+
+### The Numbers
+
+Nigeria's small businesses are the backbone of the economy — yet the financial system treats them as an afterthought.
+
+| Stat | Figure | Source |
+|---|---|---|
+| MSMEs in Nigeria | ~40 million | NBS/SMEDAN Survey, 2021 |
+| MSME contribution to GDP | ~48% | ILO, 2022 |
+| MSME share of employment | ~84–88% | ILO / NBS |
+| Share with access to formal bank credit | **4%** | Punch / Leadership, 2024 |
+| MSME financing gap in Nigeria | **$236 billion** | Leadership NG, 2024 |
+| #1 barrier cited by SMEs | High interest rates (27%) | PwC MSME Survey, 2024 |
+| #2 barrier cited by SMEs | Long procedures (26%) | PwC MSME Survey, 2024 |
+| Typical SME loan interest rate | 30%+ per annum | Punch NG, 2024 |
+
+96% of Nigeria's businesses are MSMEs. Only 4 in every 100 can access a formal loan. The other 96 are locked out — not because they aren't creditworthy, but because proving creditworthiness is too expensive, too slow, and too invasive.
+
+---
+
+### Why the Process is Broken
+
+The document-heavy loan application exists because lenders have no other way to answer a simple question: *can this business repay?*
+
+So they ask for everything and work backwards. The SME bears the entire cost — in time, in privacy, and in dignity. And every lender they approach gets a full copy of their financial life, with no guarantee of a yes.
+
+When Amara applies to three lenders, three institutions now hold her complete business financials. If she applies to five, five do. Her customer relationships, her supplier margins, her cash flow patterns — all of it, permanently disclosed, for a loan she may not even get.
+
+**LedgerProof flips this. The lender asks a question. The borrower proves the answer — without revealing anything else.**
+
+A lender only needs to know:
 
 - Is monthly revenue above ₦X?
 - Has cash flow been positive for N consecutive months?
-- Is account balance maintained above ₦Y?
-- Are there any missed loan repayments?
+- Is average balance above ₦Y?
+- Are there missed loan repayments?
 
-Yet the standard process forces full financial disclosure. Every lender that a merchant approaches gets the complete picture — sensitive commercial data flowing to institutions they barely know, submitted repeatedly for every application.
-
-**LedgerProof answers the lender's questions without answering anything else.**
+LedgerProof answers those questions cryptographically — and nothing more.
 
 ---
 
@@ -554,15 +596,67 @@ POST /verify-proof     { proof_package }             → { verified: bool }
 
 ## Roadmap
 
-| Phase | Feature |
-|---|---|
-| ✅ MVP | XLSX upload · 8-metric ZK circuit · JWT auth · lender/borrower flow · UltraHonk proof · Soroban on-chain recording |
-| Phase 2 | Open Banking API — direct bank feed, no file upload required |
-| Phase 3 | Accounting connectors — QuickBooks, Xero, Sage |
-| Phase 4 | POS integrations — Paystack, Flutterwave, Moniepoint |
-| Phase 5 | Inventory and supply chain proofs |
-| Phase 6 | Tax compliance proofs |
-| Phase 7 | Cross-bank reusable financial identity — one proof accepted by every lender |
+### ✅ Phase 1 — MVP (current)
+
+- XLSX bank statement upload and parsing
+- 8-metric ZK circuit (Noir + Barretenberg UltraHonk)
+- JWT auth with borrower and lender roles
+- Lender policy configuration and publishing
+- Borrower application flow with anonymised lender view
+- On-chain loan decision recording via deployed Soroban contract on Stellar testnet
+
+---
+
+### Phase 2 — User Research & Validation
+
+Before building further, we talk to real people.
+
+- **Interview 20+ Nigerian SME owners** across Lagos, Aba, Kano, and Port Harcourt — traders, market vendors, logistics operators, tailors — to understand what the loan application process actually costs them in time and stress
+- **Interview loan officers** at commercial banks, microfinance banks, and fintechs to understand what data they actually use in underwriting decisions vs. what they collect by default
+- **Partner with at least 2 lenders** willing to pilot ZK-verified underwriting in a controlled setting
+- **Define the minimum viable proof set** — which 3–4 metrics do lenders actually make decisions on?
+- Publish findings openly
+
+---
+
+### Phase 3 — Open Banking Integration
+
+- Direct bank feed via Mono, Okra, or CBN Open Banking APIs — no file upload required
+- Automatic statement sync with merchant consent
+- Support for multi-bank accounts (common among Nigerian SMEs)
+
+---
+
+### Phase 4 — Lender Ecosystem
+
+- Lender onboarding portal with policy templates
+- Multi-lender proof reuse — one proof package, many applications
+- Proof expiry and refresh logic
+- Accounting connectors — QuickBooks, Sage, Zoho Books
+
+---
+
+### Phase 5 — POS & Revenue Data
+
+- POS integrations — Moniepoint, Paystack, Flutterwave
+- Prove revenue from POS data directly, without bank statements
+- Real-time revenue proof for merchant cash advances
+
+---
+
+### Phase 6 — Expanded Proof Types
+
+- Inventory and stock level proofs
+- Tax compliance proofs (FIRS)
+- Supplier relationship proofs
+
+---
+
+### Phase 7 — Universal Financial Identity
+
+- One reusable, portable financial identity accepted by every lender on the network
+- Cross-bank reputation — aggregated ZK proofs from multiple accounts and data sources
+- Merchant controls exactly which metrics they share and with whom
 
 ---
 
