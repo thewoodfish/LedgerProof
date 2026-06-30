@@ -8,6 +8,7 @@ mod services;
 use config::Config;
 use sqlx::PgPool;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
@@ -15,6 +16,8 @@ use tower_http::trace::TraceLayer;
 pub struct AppState {
     pub db: PgPool,
     pub config: Arc<Config>,
+    /// Prevents concurrent ZK proof generation from corrupting shared circuit output files.
+    pub proof_lock: Arc<Mutex<()>>,
 }
 
 #[tokio::main]
@@ -36,6 +39,7 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         db: pool,
         config: config.clone(),
+        proof_lock: Arc::new(Mutex::new(())),
     };
 
     let cors = CorsLayer::new()

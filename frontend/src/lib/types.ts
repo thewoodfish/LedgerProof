@@ -1,3 +1,19 @@
+// ── Core domain ───────────────────────────────────────────────────────────
+
+export interface User {
+  id: string;
+  username: string;
+  role: "borrower" | "lender";
+  full_name: string | null;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: User;
+}
+
+// ── Transactions & statements ──────────────────────────────────────────────
+
 export interface Transaction {
   id: string;
   statement_id: string;
@@ -10,6 +26,8 @@ export interface Transaction {
   category: string;
   created_at: string;
 }
+
+// ── Metrics ────────────────────────────────────────────────────────────────
 
 export interface MetricsSummary {
   metrics_id: string;
@@ -29,6 +47,8 @@ export interface MetricsSummary {
   monthly_revenue: Record<string, number>;
   monthly_cash_flow: Record<string, number>;
 }
+
+// ── ZK Proofs ──────────────────────────────────────────────────────────────
 
 export interface ProvenPredicate {
   name: string;
@@ -59,6 +79,8 @@ export interface ProofPackage {
   created_at: string;
 }
 
+// ── Lending policy ─────────────────────────────────────────────────────────
+
 export interface LendingPolicy {
   required_monthly_revenue?: number;
   required_avg_balance?: number;
@@ -70,11 +92,49 @@ export interface LendingPolicy {
   required_account_age_months?: number;
 }
 
-export interface LoanDecision {
+// ── Lender profiles ────────────────────────────────────────────────────────
+
+export interface LenderProfile {
+  id: string;
+  user_id: string;
+  display_name: string;
+  description: string;
+  policy: LendingPolicy;
+  published: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Applications ───────────────────────────────────────────────────────────
+
+export interface LoanApplication {
+  id: string;
+  status: "pending" | "approved" | "rejected";
+  decision_reason: string | null;
+  amount_requested: number | null;
+  created_at: string;
+  decided_at: string | null;
+  // borrower view
+  lender?: { display_name: string };
+  // lender view
+  borrower_ref?: string;
+}
+
+export interface ProofDetail {
+  id: string;
+  circuit_id: string;
+  proof_hash: string;
+  vk_hash: string;
+  proof_size_bytes: number;
+  pub_inputs_hex: string;
+  public_inputs: PublicInputs;
+}
+
+export interface VerifyResult {
   application_id: string;
-  decision: "approved" | "rejected" | "pending";
-  reason: string;
+  status: string;
+  decision_reason: string;
   proof_verified: boolean;
-  policy_met: boolean;
-  failed_predicates: string[];
+  predicates: ProvenPredicate[];
+  proof?: ProofDetail;
 }

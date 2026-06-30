@@ -8,6 +8,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
+    #[error("unauthorized: {0}")]
+    Unauthorized(String),
+
     #[error("not found: {0}")]
     NotFound(String),
 
@@ -16,9 +19,6 @@ pub enum AppError {
 
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
-
-    #[error("parse error: {0}")]
-    Parse(String),
 
     #[error("proof generation failed: {0}")]
     ProofGen(String),
@@ -30,9 +30,9 @@ pub enum AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, message) = match &self {
+            AppError::Unauthorized(m) => (StatusCode::UNAUTHORIZED, m.clone()),
             AppError::NotFound(m) => (StatusCode::NOT_FOUND, m.clone()),
             AppError::BadRequest(m) => (StatusCode::BAD_REQUEST, m.clone()),
-            AppError::Parse(m) => (StatusCode::UNPROCESSABLE_ENTITY, m.clone()),
             AppError::ProofGen(m) => (StatusCode::INTERNAL_SERVER_ERROR, m.clone()),
             AppError::Database(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
             AppError::Internal(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),

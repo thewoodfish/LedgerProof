@@ -12,5 +12,8 @@ pub async fn run_migrations(pool: &PgPool) -> anyhow::Result<()> {
     sqlx::raw_sql(include_str!("migrations/001_init.sql"))
         .execute(pool)
         .await?;
+    sqlx::raw_sql(include_str!("migrations/002_users_lenders.sql"))
+        .execute(pool)
+        .await?;
     Ok(())
 }

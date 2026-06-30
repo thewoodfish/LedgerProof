@@ -4,12 +4,12 @@ use crate::{
         metrics::{FinancialMetrics, LendingPolicy},
         proof::{Proof, ProofPackage},
     },
+    routes::AuthUser,
     services::proof_gen,
     AppState,
 };
 use axum::{
     extract::{Path, State},
-    http::HeaderMap,
     Json,
 };
 use serde::Deserialize;
@@ -30,23 +30,21 @@ pub struct VerifyProofRequest {
 /// POST /generate-proof
 pub async fn generate(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    auth: AuthUser,
     Json(req): Json<GenerateProofRequest>,
 ) -> AppResult<Json<Value>> {
-    let merchant_id = crate::routes::statements::merchant_id_from_headers(&headers);
-
-    // Load metrics
     let metrics: FinancialMetrics = sqlx::query_as(
         "SELECT * FROM financial_metrics WHERE id = $1 AND merchant_id = $2",
     )
     .bind(req.metrics_id)
-    .bind(merchant_id)
+    .bind(auth.id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("metrics not found".into()))?;
 
     let proof_id = Uuid::new_v4();
     let circuits_dir = state.config.circuits_dir.clone();
+    let _guard = state.proof_lock.lock().await;
 
     let package = tokio::task::spawn_blocking(move || {
         proof_gen::generate(proof_id, &metrics, &req.policy, &circuits_dir)
@@ -55,7 +53,6 @@ pub async fn generate(
     .map_err(|e| AppError::ProofGen(e.to_string()))?
     .map_err(|e| AppError::ProofGen(e.to_string()))?;
 
-    // Persist proof
     sqlx::query(
         "INSERT INTO proofs
          (id, merchant_id, metrics_id, circuit_id, proof_hex, vk_hex, public_inputs, predicates)
@@ -65,7 +62,6 @@ pub async fn generate(
     .bind(package.merchant_id)
     .bind(req.metrics_id)
     .bind(&package.circuit_id)
-    // Store combined "proof_hex|pub_inputs_hex" so it round-trips fully
     .bind(format!("{}|{}", package.proof_hex, package.pub_inputs_hex))
     .bind(&package.vk_hex)
     .bind(serde_json::to_value(&package.public_inputs).unwrap())
@@ -88,13 +84,12 @@ pub async fn verify(
 ) -> AppResult<Json<Value>> {
     let circuits_dir = state.config.circuits_dir.clone();
     let package = req.proof_package.clone();
+    let _guard = state.proof_lock.lock().await;
 
-    let verified = tokio::task::spawn_blocking(move || {
-        proof_gen::verify(&package, &circuits_dir)
-    })
-    .await
-    .map_err(|e| AppError::ProofGen(e.to_string()))?
-    .map_err(|e| AppError::ProofGen(e.to_string()))?;
+    let verified = tokio::task::spawn_blocking(move || proof_gen::verify(&package, &circuits_dir))
+        .await
+        .map_err(|e| AppError::ProofGen(e.to_string()))?
+        .map_err(|e| AppError::ProofGen(e.to_string()))?;
 
     Ok(Json(json!({
         "verified": verified,
@@ -108,11 +103,10 @@ pub async fn get_one(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<Proof>> {
-    let row: Option<Proof> =
-        sqlx::query_as("SELECT * FROM proofs WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&state.db)
-            .await?;
+    let row: Option<Proof> = sqlx::query_as("SELECT * FROM proofs WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?;
 
     row.map(Json)
         .ok_or_else(|| AppError::NotFound("proof not found".into()))

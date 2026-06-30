@@ -88,17 +88,4 @@ CREATE TABLE IF NOT EXISTS proofs (
 );
 CREATE INDEX IF NOT EXISTS idx_proofs_merchant ON proofs(merchant_id);
 
--- Loan applications
-CREATE TABLE IF NOT EXISTS loan_applications (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    merchant_id UUID NOT NULL,
-    lender_id   UUID NOT NULL,
-    proof_id    UUID NOT NULL REFERENCES proofs(id),
-    policy      JSONB NOT NULL DEFAULT '{}',
-    decision    TEXT,   -- approved | rejected | pending
-    reason      TEXT,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    decided_at  TIMESTAMPTZ
-);
-CREATE INDEX IF NOT EXISTS idx_loans_merchant ON loan_applications(merchant_id);
-CREATE INDEX IF NOT EXISTS idx_loans_lender ON loan_applications(lender_id);
+-- loan_applications is defined in migration 002 with the full auth-aware schema

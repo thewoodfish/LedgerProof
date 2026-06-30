@@ -1,80 +1,196 @@
-import { LendingPolicy, MetricsSummary, ProofPackage, Transaction } from "./types";
+import { getToken } from "./auth";
+import type {
+  AuthResponse,
+  LendingPolicy,
+  LenderProfile,
+  LoanApplication,
+  MetricsSummary,
+  ProofPackage,
+  Transaction,
+  VerifyResult,
+} from "./types";
 
 const API = "/api";
 
-const MERCHANT_ID = "00000000-0000-0000-0000-000000000001";
-
-function headers(extra?: Record<string, string>) {
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const token = getToken();
   return {
-    "x-merchant-id": MERCHANT_ID,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...extra,
   };
 }
 
-export async function uploadStatement(file: File): Promise<{ statement_id: string; status: string }> {
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error ?? res.statusText);
+  }
+  return res.json();
+}
+
+// ── Auth ───────────────────────────────────────────────────────────────────
+
+export async function register(data: {
+  username: string;
+  password: string;
+  role: string;
+  full_name?: string;
+}): Promise<AuthResponse> {
+  const res = await fetch(`${API}/auth/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+export async function login(data: {
+  username: string;
+  password: string;
+}): Promise<AuthResponse> {
+  const res = await fetch(`${API}/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+// ── Statements ─────────────────────────────────────────────────────────────
+
+export async function uploadStatement(
+  file: File
+): Promise<{ statement_id: string; status: string }> {
   const form = new FormData();
   form.append("file", file);
   const res = await fetch(`${API}/upload-statement`, {
     method: "POST",
-    headers: headers(),
+    headers: authHeaders(),
     body: form,
   });
-  if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
-  return res.json();
+  return handleResponse(res);
 }
 
-export async function getTransactions(params?: { category?: string; limit?: number }): Promise<Transaction[]> {
+export async function getTransactions(params?: {
+  category?: string;
+  limit?: number;
+}): Promise<Transaction[]> {
   const qs = new URLSearchParams({
-    merchant_id: MERCHANT_ID,
+    limit: String(params?.limit ?? 300),
     ...(params?.category ? { category: params.category } : {}),
-    limit: String(params?.limit ?? 200),
   });
-  const res = await fetch(`${API}/transactions?${qs}`, { headers: headers() });
-  if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
-  return res.json();
+  const res = await fetch(`${API}/transactions?${qs}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
 }
+
+// ── Metrics ────────────────────────────────────────────────────────────────
 
 export async function computeMetrics(): Promise<MetricsSummary> {
   const res = await fetch(`${API}/metrics`, {
     method: "POST",
-    headers: headers(),
+    headers: authHeaders(),
   });
-  if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
-  return res.json();
+  return handleResponse(res);
 }
+
+export async function getLatestMetrics(): Promise<MetricsSummary> {
+  const res = await fetch(`${API}/metrics/latest`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+// ── Lender profiles ────────────────────────────────────────────────────────
+
+export async function getPublishedLenders(): Promise<LenderProfile[]> {
+  const res = await fetch(`${API}/lenders`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+export async function getMyLenderProfile(): Promise<LenderProfile> {
+  const res = await fetch(`${API}/lenders/me`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+export async function upsertLenderProfile(data: {
+  display_name?: string;
+  description?: string;
+  policy?: LendingPolicy;
+  published?: boolean;
+}): Promise<LenderProfile> {
+  const res = await fetch(`${API}/lenders/me`, {
+    method: "POST",
+    headers: authHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+export async function togglePublish(): Promise<{ published: boolean }> {
+  const res = await fetch(`${API}/lenders/me/publish`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+}
+
+// ── Applications ───────────────────────────────────────────────────────────
+
+export async function createApplication(data: {
+  lender_profile_id: string;
+  metrics_id: string;
+  amount_requested?: number;
+}): Promise<{ application_id: string; status: string }> {
+  const res = await fetch(`${API}/applications`, {
+    method: "POST",
+    headers: authHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+export async function getMyApplications(): Promise<LoanApplication[]> {
+  const res = await fetch(`${API}/applications/mine`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+export async function getLenderApplications(): Promise<LoanApplication[]> {
+  const res = await fetch(`${API}/applications/lender`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+export async function verifyApplication(id: string): Promise<VerifyResult> {
+  const res = await fetch(`${API}/applications/${id}/verify`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+}
+
+// ── Proofs (kept for direct use) ───────────────────────────────────────────
 
 export async function generateProof(
   metricsId: string,
   policy: LendingPolicy
-): Promise<{ proof_id: string; predicates: Array<{ name: string; description: string; satisfied: boolean }>; package: ProofPackage }> {
+): Promise<{ proof_id: string; predicates: ProvenPredicate[]; package: ProofPackage }> {
   const res = await fetch(`${API}/generate-proof`, {
     method: "POST",
-    headers: { ...headers(), "content-type": "application/json" },
+    headers: authHeaders({ "content-type": "application/json" }),
     body: JSON.stringify({ metrics_id: metricsId, policy }),
   });
-  if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
-  return res.json();
+  return handleResponse(res);
 }
 
-export async function verifyProof(proofPackage: ProofPackage): Promise<{ verified: boolean }> {
+export async function verifyProof(
+  proofPackage: ProofPackage
+): Promise<{ verified: boolean }> {
   const res = await fetch(`${API}/verify-proof`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: authHeaders({ "content-type": "application/json" }),
     body: JSON.stringify({ proof_package: proofPackage }),
   });
-  if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
-  return res.json();
+  return handleResponse(res);
 }
 
-export async function evaluateLoan(
-  proofPackage: ProofPackage,
-  policy: LendingPolicy
-): Promise<{ decision: string; reason: string; proof_verified: boolean; failed_predicates: string[] }> {
-  const res = await fetch(`${API}/loan/evaluate`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ proof_package: proofPackage, policy }),
-  });
-  if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
-  return res.json();
-}
+// ── Local type alias ───────────────────────────────────────────────────────
+interface ProvenPredicate { name: string; description: string; satisfied: boolean; }

@@ -17,7 +17,10 @@ pub fn generate(
     policy: &LendingPolicy,
     circuits_dir: &str,
 ) -> Result<ProofPackage> {
-    let circuit_path = Path::new(circuits_dir);
+    let circuit_path = Path::new(circuits_dir)
+        .canonicalize()
+        .map_err(|e| anyhow!("circuits_dir '{}' not found: {e}", circuits_dir))?;
+    let circuit_path = circuit_path.as_path();
 
     // Build public and private inputs
     let pub_inputs = public_inputs(policy);
@@ -114,7 +117,10 @@ pub fn generate(
 
 /// Verify a UltraHonk proof from a proof package.
 pub fn verify(package: &ProofPackage, circuits_dir: &str) -> Result<bool> {
-    let circuit_path = Path::new(circuits_dir);
+    let circuit_path = Path::new(circuits_dir)
+        .canonicalize()
+        .map_err(|e| anyhow!("circuits_dir '{}' not found: {e}", circuits_dir))?;
+    let circuit_path = circuit_path.as_path();
 
     let proof_bytes = hex::decode(&package.proof_hex)
         .map_err(|e| anyhow!("Invalid proof hex: {e}"))?;
