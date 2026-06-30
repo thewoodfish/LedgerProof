@@ -587,4 +587,4 @@ For SMEs in emerging markets, where access to formal finance is already constrai
 
 ## License
 
-MIT
+Apache 2.0
