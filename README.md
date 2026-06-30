@@ -112,7 +112,7 @@ Borrowers appear as anonymised applicants (`Applicant #0d72c5ed`). The lender se
 
 The lender clicks **Generate Proof**. The UI steps through the full proving pipeline in real time — witness compilation, VK generation, UltraHonk proving, and cryptographic verification. The result shows each predicate individually (PASS / FAIL), the proof hash, verification key hash, proof size, and all public inputs committed to the circuit. The lender sees no financial data whatsoever.
 
-![ZK proof generation and loan approval](frontend/assets/Screenshot%202026-06-30%20at%2001.55.24.png)
+![ZK proof generation, loan approval, and Stellar on-chain recording](frontend/assets/Screenshot%202026-06-30%20at%2003.22.19.png)
 
 ---
 
