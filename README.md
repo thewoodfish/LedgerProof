@@ -10,7 +10,9 @@ Stellar is the settlement layer for the entire underwriting process — not a lo
 
 ## The Problem
 
-Amara runs a fabric shop in Aba. Business is good — she moves stock, pays her suppliers, keeps a positive balance. She wants a ₦2 million working capital loan to stock up before the festive season.
+Amara runs a fabric shop in Aba. Every week she sells fabric, pays suppliers, and brings in steady revenue. She has customers, healthy cash flow, and years of trading experience.
+
+Before the festive season she needs a ₦2 million working capital loan to buy inventory.
 
 To apply, her bank asks for:
 
@@ -21,9 +23,13 @@ To apply, her bank asks for:
 - Utility bills and proof of address
 - Collateral (land, property, or guarantor)
 
-She spends two weeks pulling documents together, photocopying statements, chasing her accountant. She submits everything. Three weeks later: rejected. The loan officer says her revenue pattern was "irregular." She never finds out exactly why. She reapplies to another lender. Same documents. Same wait. Same exposure of her entire financial life to strangers.
+Amara doesn't have most of these.
 
-This is not a rare story. It is the default experience for **40 million MSMEs in Nigeria**.
+She has never hired an auditor. She rents her shop. She has no land to pledge as collateral. Her business is healthy, but it isn't documented in the way the financial system expects.
+
+So she's rejected—not because she can't repay the loan, but because she can't produce the paperwork.
+
+This is the reality for **40 million MSMEs in Nigeria**. Millions of small businesses generate real economic activity every day, yet remain invisible to formal credit because traditional underwriting depends on documents instead of demonstrated financial behaviour.
 
 ---
 
@@ -48,22 +54,41 @@ Nigeria's small businesses are the backbone of the economy — yet the financial
 
 ### Why the Process is Broken
 
-The document-heavy loan application exists because lenders have no other way to answer a simple question: *can this business repay?*
+Lenders need evidence that a business can repay a loan.
 
-So they ask for everything and work backwards. The SME bears the entire cost — in time, in privacy, and in dignity. And every lender they approach gets a full copy of their financial life, with no guarantee of a yes.
+Today, the only tools they have are documents: audited accounts, bank statements, collateral, guarantors, and business plans. For many small businesses, these documents simply don't exist.
 
-When Amara applies to three lenders, three institutions now hold her complete business financials. If she applies to five, five do. Her customer relationships, her supplier margins, her cash flow patterns — all of it, permanently disclosed, for a loan she may not even get.
+What does exist is something far more valuable:
 
-**LedgerProof flips this. The lender asks a question. The borrower proves the answer — without revealing anything else.**
+- Consistent sales
+- Healthy cash flow
+- Reliable supplier payments
+- Months or years of trading history
 
-A lender only needs to know:
+These are often the strongest indicators of whether a business can repay a loan.
+
+The problem isn't that these businesses lack financial health.
+
+**The problem is that they lack an accepted way to prove it.**
+
+The current system forces borrowers to compensate by repeatedly handing over their entire financial history to every lender they approach. The SME bears the cost—in time, in paperwork, and in privacy—with no guarantee of approval.
+
+**LedgerProof replaces document-based lending with proof-based lending.**
+
+Instead of asking:
+
+> Show me your bank statements.
+
+A lender asks:
 
 - Is monthly revenue above ₦X?
 - Has cash flow been positive for N consecutive months?
 - Is average balance above ₦Y?
 - Are there missed loan repayments?
 
-LedgerProof answers those questions cryptographically — and nothing more.
+The borrower proves those statements cryptographically—without revealing bank balances, customer names, transaction histories, or any other financial details.
+
+Credit should be based on **provable financial behaviour**, not paperwork.
 
 ---
 
